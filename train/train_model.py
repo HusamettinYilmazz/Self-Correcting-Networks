@@ -13,7 +13,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 
-from datasets import VOCDataset
+from datasets import VOCDataset, SBDDataset
 from utils import Config, load_config, lr_vs_epoch, save_checkpoint, load_checkpoint
 from utils.logger import Logger
 from utils.dice_loss import DiceLoss
@@ -184,10 +184,12 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, val_load
 
 def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_loader, 
                          train_transform, val_transform,device, models,
-                         optimizers, schedulers, loss_func, scaler, logger, save_dir):
+                         optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
     lr = []
+    best_miou = 0.0
     logger.info("Stage 3: Primary Model Training")
+    logger.info(f"Stage 3 training dataset size: {(len(train_loaders['f_loader'])+len(train_loaders['w_loader']))*config.training['batch_size']}")
     for epoch in range(starting_epoch, config.training['stage3_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage3_num_epochs']}")
         _ = train_primary_model_epoch(
@@ -196,8 +198,9 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
                 device=device,
                 models=models,
                 optimizers=optimizers,
-                loss_func=loss_func,
-                scaler=scaler,
+                loss_funcs=loss_funcs,
+                schedulers=schedulers,
+                accum_steps=config.training['grad_acc_steps'],
                 logger=logger
             )
 
@@ -207,7 +210,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
                         data_loader=val_loader,
                         device=device,
                         models=models,
-                        loss_func=loss_func,
+                        loss_funcs=loss_funcs,
                         class_names= config.model["class_labels"],
                         logger=logger,
                         save_dir=save_file
@@ -216,20 +219,29 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
         
         
         logger.info(f"Current learning rate: {optimizers['primary'].param_groups[0]['lr']}")
-        schedulers['primary'].step(val_metrics['avg_loss'])
+        # schedulers['primary'].step(val_metrics['avg_loss'])
         
         cur_lr = optimizers['primary'].param_groups[0]['lr']
         lr.append(cur_lr)
         
-        save_checkpoint(epoch, 
-                        models["primary"],
-                        optimizers['primary'], 
-                        cur_lr, 
-                        val_metrics['acc_per_class'], 
-                        config, 
-                        train_transform, 
-                        val_transform, 
-                        save_dir)
+        if val_metrics['mIoU'] > 0.6 and (epoch % 30 == 0 or round(val_metrics['mIoU'], 2) > round(best_miou, 2)):
+            save_checkpoint(
+                epoch= epoch, 
+                model= models["primary"],
+                optimizer= optimizers['primary'], 
+                scheduler= schedulers['primary'],
+                cur_lr= cur_lr, 
+                val_acc= val_metrics['acc_per_class'], 
+                config= config, 
+                train_transform= train_transform, 
+                val_transform= val_transform, 
+                save_dir= save_dir,
+                model_name= "primary"
+            )
+            if epoch % 30 == 0:
+                ...
+            else:
+                best_miou = val_metrics['mIoU']
         
     logger.info(f"Third stage training completed successfully")
 
@@ -278,6 +290,9 @@ def train(config: Config, checkpoint_path=None):
     train_val_dataset_path = os.path.join(dataset_path, 
                                         config.data['train_dataset_path'])
     
+    weak_dataset_path = os.path.join(dataset_path, 
+                                        config.data['weak_dataset_path'])
+
     fully_sup_train_dataset = VOCDataset(data_path= train_val_dataset_path,
                                     data_type="train",
                                     is_sup= True,
@@ -293,10 +308,10 @@ def train(config: Config, checkpoint_path=None):
         generator=generator
     )
 
-    weak_train_dataset = VOCDataset(data_path= train_val_dataset_path,
-                                    data_type="train",
-                                    is_sup= False,
-                                    transform=train_transform)
+    weak_train_dataset = SBDDataset(
+        data_path= weak_dataset_path,
+        transform=train_transform
+    )
     
     val_dataset = VOCDataset(data_path= train_val_dataset_path,
                                data_type="val",
