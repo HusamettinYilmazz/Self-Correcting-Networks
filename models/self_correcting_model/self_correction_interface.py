@@ -9,3 +9,7 @@ class SelfCorrectionModule(ABC, nn.Module):
                 ancillary_logits: torch.Tensor,) -> torch.Tensor:
         
         pass
+
+    def freeze(self):
+        
+        pass

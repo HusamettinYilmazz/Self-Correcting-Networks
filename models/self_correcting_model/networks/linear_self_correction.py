@@ -26,3 +26,7 @@ class LinearCorrectionModule(SelfCorrectionModule):
         alpha = self._alpha
         blended_logits = (primary_logits + alpha * ancillary_logits) / (alpha + 1.0)
         return blended_logits
+
+    def freeze(self):
+        for p in self.parameters():
+            p.requires_grad_(False)

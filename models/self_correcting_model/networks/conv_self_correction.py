@@ -17,3 +17,7 @@ class ConvCorrectionModule(SelfCorrectionModule):
         combined = torch.cat([primary_logits, ancillary_logits], dim=1)
         logits = self.net(combined)
         return logits
+
+    def freeze(self):
+        for p in self.parameters():
+            p.requires_grad_(False)
