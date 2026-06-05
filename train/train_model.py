@@ -224,7 +224,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
         cur_lr = optimizers['primary'].param_groups[0]['lr']
         lr.append(cur_lr)
         
-        if val_metrics['mIoU'] > 0.6 and (epoch % 30 == 0 or round(val_metrics['mIoU'], 2) > round(best_miou, 2)):
+        if val_metrics['primary_mIoU'] > 0.6 and (epoch % 30 == 0 or round(val_metrics['primary_mIoU'], 2) > round(best_miou, 2)):
             save_checkpoint(
                 epoch= epoch, 
                 model= models["primary"],
@@ -241,7 +241,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
             if epoch % 30 == 0:
                 ...
             else:
-                best_miou = val_metrics['mIoU']
+                best_miou = val_metrics['primary_mIoU']
         
     logger.info(f"Third stage training completed successfully")
 

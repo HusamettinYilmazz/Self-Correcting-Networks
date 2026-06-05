@@ -4,9 +4,9 @@ import torch
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
 from utils.eval import compute_per_class_accuracy, plot_confusion_matrix
 
-def unsupervised_loss(w_primary_outputs, correcting_logits):
+def unsupervised_loss(w_primary_logits, correcting_logits):
 
-    log_probs = torch.log_softmax(w_primary_outputs, dim=1)
+    log_probs = torch.log_softmax(w_primary_logits, dim=1)
     pseudo = torch.softmax(correcting_logits, dim=1).detach()
 
     unsup_loss = -(pseudo * log_probs).sum(dim=1).mean()
@@ -16,53 +16,58 @@ def unsupervised_loss(w_primary_outputs, correcting_logits):
 def compute_lambda(epoch):
     return min(1.0, epoch/10)
 
-def train_primary_model_epoch(epoch, data_loaders, device, models,
-                       optimizers, loss_func, scaler, logger):
+def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
+                              loss_funcs, schedulers, accum_steps, logger):
     
     total_loss = 0.0
     
+    optimizers["primary"].zero_grad()
     models["primary"].train()
+    models["correcting"].freeze()
     models["correcting"].eval()
+    models["ancillary"].freeze()
     models["ancillary"].eval()
     for batch_idx, ((f_imgs, f_bbox, f_masks), (w_imgs, w_bbox)) in \
         enumerate(zip(data_loaders["f_loader"], cycle(data_loaders["w_loader"]))):
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
         w_imgs, w_bbox = w_imgs.to(device), w_bbox.to(device)
 
-        f_primary_outputs = models["primary"](f_imgs)
-        w_primary_outputs = models["primary"](w_imgs)
+        f_primary_logits = models["primary"](f_imgs)
+        w_primary_logits = models["primary"](w_imgs)
 
         with torch.no_grad():
                 ancillary_outputs = models["ancillary"](w_imgs, w_bbox)
                 correcting_logits = models["correcting"](
-                    w_primary_outputs.detach(), 
+                    w_primary_logits.detach(), 
                     ancillary_outputs.detach()
                 )
 
-        primary_loss = loss_func(f_primary_outputs, f_masks)
-        unsup_loss = unsupervised_loss(w_primary_outputs, correcting_logits)
+        primary_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
+        unsup_loss = unsupervised_loss(w_primary_logits, correcting_logits)
         lambda_u = compute_lambda(epoch)
 
         loss = primary_loss + lambda_u * unsup_loss
-        optimizers["primary"].zero_grad()
-        loss.backward()
-        optimizers["primary"].step()
         
         total_loss += loss.item()
 
-        if batch_idx % 10 == 0:
-            logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} \
-                        at Batch:{batch_idx}/{len(data_loaders['f_loader'])} \
-                        Primary Loss:{primary_loss.item():.3f} |\
-                        Unsupervised Loss:{unsup_loss.item():.3f} &\
-                        Combined Loss:{loss.item():.3f}")
+        acc_loss = loss / accum_steps
+        acc_loss.backward()
+
+        if (batch_idx+1) % accum_steps == 0 or (batch_idx+1) == len(data_loaders["w_loader"]):
+            optimizers["primary"].step()
+            optimizers["primary"].zero_grad()
+            schedulers["primary"].step()
+
+
+        if batch_idx % 20 == 0:
+            logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loaders['f_loader'])} Primary Loss:{primary_loss.item():.3f} | Unsupervised Loss:{unsup_loss.item():.3f} & Combined Loss:{loss.item():.3f}")
     
     avg_loss = total_loss/ len(data_loaders["f_loader"])
     logger.info(f"PRIMARY MODEL Epoch:{epoch} average train Loss:{avg_loss:.3f}")
     
     return avg_loss
 
-def validate_primary_model(epoch, data_loader, device, models, loss_func,
+def validate_primary_model(epoch, data_loader, device, models, loss_funcs,
                      class_names, logger, save_dir=None):
     
     models["primary"].eval()
@@ -78,7 +83,7 @@ def validate_primary_model(epoch, data_loader, device, models, loss_func,
 
             outputs = models["primary"](imgs)
 
-            loss = loss_func(outputs, masks)
+            loss = loss_funcs['ce_loss'](outputs, masks)
             total_loss += loss.item()
 
             # preds = outputs.argmax(dim=1)
@@ -99,6 +104,8 @@ def validate_primary_model(epoch, data_loader, device, models, loss_func,
         "avg_loss": total_loss / len(data_loader),
         "iou_per_class": iou_per_class,
         "acc_per_class": acc_per_class,
+        "primary_mIoU"         : iou_per_class[1:].mean().item(),
+        "primary_avg_acc"      : acc_per_class[1:].mean().item(),
     }
 
     logger.info(f"Epoch: {epoch} | Stage 3 validation")
