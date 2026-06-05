@@ -7,5 +7,4 @@ class NoCorrectionModule(SelfCorrectionModule):
         return ancillary_logits
 
     def freeze(self):
-        for p in self.parameters():
-            p.requires_grad_(False)
+        pass
