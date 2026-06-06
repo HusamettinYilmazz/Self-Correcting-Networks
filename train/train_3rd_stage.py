@@ -27,16 +27,16 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
     models["correcting"].eval()
     models["ancillary"].freeze()
     models["ancillary"].eval()
-    for batch_idx, ((f_imgs, f_bbox, f_masks), (w_imgs, w_bbox)) in \
+    for batch_idx, ((f_imgs, f_bbox, f_masks), (w_imgs, w_masks)) in \
         enumerate(zip(data_loaders["f_loader"], cycle(data_loaders["w_loader"]))):
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
-        w_imgs, w_bbox = w_imgs.to(device), w_bbox.to(device)
+        w_imgs, w_masks = w_imgs.to(device), w_masks.to(device)
 
         f_primary_logits = models["primary"](f_imgs)
         w_primary_logits = models["primary"](w_imgs)
 
         with torch.no_grad():
-                ancillary_outputs = models["ancillary"](w_imgs, w_bbox)
+                ancillary_outputs = models["ancillary"](w_imgs, w_masks)
                 correcting_logits = models["correcting"](
                     w_primary_logits.detach(), 
                     ancillary_outputs.detach()
