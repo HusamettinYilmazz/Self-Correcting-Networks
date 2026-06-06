@@ -1,15 +1,15 @@
 
 experiment:
-  name: "Version_1"
-  version: "3.0"
+  name: "stage3"
+  version: "1.0"
   seed: 31
 
 data:
   dataset_name: "VOC-2012"
-  dataset_path: "/kaggle/input/datasets/gopalbhattrai/pascal-voc-2012-dataset"
-  weak_dataset_path: "weak_dataset"
-  train_dataset_path: "VOC2012_train_val/VOC2012_train_val"
-  test_dataset_path: "VOC2012_test/VOC2012_test"
+  dataset_path: "/kaggle/input/datasets"
+  weak_dataset_path: "husamo/sbd-dataset/weak_dataset"
+  train_dataset_path: "gopalbhattrai/pascal-voc-2012-dataset/VOC2012_train_val/VOC2012_train_val"
+  test_dataset_path: "gopalbhattrai/pascal-voc-2012-dataset/VOC2012_test/VOC2012_test"
   output_path: "outputs/"
 
 model:
@@ -41,7 +41,7 @@ model:
     - tvmonitor
 
 training:
-  training_stage: 2
+  training_stage: 3
   continue_traning: False
   optimizer: "AdamW"
   batch_size: 8
