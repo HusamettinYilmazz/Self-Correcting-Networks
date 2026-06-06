@@ -31,6 +31,15 @@ class SBDDataset(Dataset):
 
         return mask.astype(np.int64)
 
+    def _mask_to_onehot(self, mask, num_classes=21):
+        H, W = mask.shape
+        onehot = np.zeros((num_classes, H, W), dtype=np.uint8)
+
+        for c in range(num_classes):
+            onehot[c] = (mask == c)
+
+        return onehot
+
     def __len__(self):
         return len(self.ids)
 
@@ -40,18 +49,19 @@ class SBDDataset(Dataset):
         img_path = os.path.join(self.img_dir, f"{img_id}.jpg")
         image = np.array(Image.open(img_path).convert("RGB"))
 
-        mask = self._load_mask(img_id)
+        mask = self._load_mask(img_id)  # (H, W)
+
+        weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
 
         if self.transform:
             transformed = self.transform(
                 image=image,
-                masks=[mask]
+                masks=[weak_mask[c] for c in range(weak_mask.shape[0])]
             )
 
-            image = transformed["image"].float()
-            mask = transformed["masks"][0]
+            image = transformed["image"]
+            weak_mask = np.stack(transformed["masks"], axis=0)
 
-        # image = torch.tensor(image)
-        mask = torch.tensor(mask, dtype=torch.long)
+        weak_mask = torch.tensor(weak_mask, dtype=torch.float32)
 
-        return image, mask
+        return image, weak_mask
