@@ -48,10 +48,10 @@ class SBDDataset(Dataset):
                 masks=[mask]
             )
 
-            image = transformed["image"]
+            image = transformed["image"].float()
             mask = transformed["masks"][0]
 
-        image = torch.tensor(image).permute(2, 0, 1).float()
+        # image = torch.tensor(image)
         mask = torch.tensor(mask, dtype=torch.long)
 
         return image, mask
