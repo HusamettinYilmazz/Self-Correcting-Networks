@@ -32,10 +32,13 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
     models["ancillary"].eval()
     
     f_loader_iter = iter(data_loaders["f_loader"])
+    epochs_f_loder = 1
     for batch_idx, (w_imgs, w_masks) in enumerate(data_loaders["w_loader"]):
         try:
             f_imgs, _, f_masks = next(f_loader_iter)
         except StopIteration:
+            epochs_f_loder += 1
+            logger.info(f"f_loader epoch:{epochs_f_loder} starting")
             # Restart the iterator cleanly when it runs out of data
             f_loader_iter = iter(data_loaders["f_loader"])
             f_imgs, _, f_masks = next(f_loader_iter)
@@ -71,9 +74,10 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
             schedulers["primary"].step()
 
 
-        if batch_idx % 20 == 0:
+        if batch_idx % 200 == 0 or batch_idx == 20:
             logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loaders['w_loader'])} Primary Loss:{primary_loss.item():.3f} | Unsupervised Loss:{unsup_loss.item():.3f} & Combined Loss:{loss.item():.3f}")
     
+    logger.info(f"fully supervised dataset trained: {epochs_f_loder} epochs")
     avg_loss = total_loss/ len(data_loaders["w_loader"])
     logger.info(f"PRIMARY MODEL Epoch:{epoch} average train Loss:{avg_loss:.3f}")
     
