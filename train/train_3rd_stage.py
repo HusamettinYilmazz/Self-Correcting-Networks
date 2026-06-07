@@ -52,6 +52,7 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
                 w_primary_logits.detach(), 
                 ancillary_outputs.detach()
             )
+            correcting_logits = correcting_logits.detach()
 
         primary_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
         unsup_loss = unsupervised_loss(w_primary_logits, correcting_logits)
