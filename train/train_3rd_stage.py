@@ -36,11 +36,11 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
         w_primary_logits = models["primary"](w_imgs)
 
         with torch.no_grad():
-                ancillary_outputs = models["ancillary"](w_imgs, w_masks)
-                correcting_logits = models["correcting"](
-                    w_primary_logits.detach(), 
-                    ancillary_outputs.detach()
-                )
+            ancillary_outputs = models["ancillary"](w_imgs, w_masks)
+            correcting_logits = models["correcting"](
+                w_primary_logits.detach(), 
+                ancillary_outputs.detach()
+            )
 
         primary_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
         unsup_loss = unsupervised_loss(w_primary_logits, correcting_logits)
