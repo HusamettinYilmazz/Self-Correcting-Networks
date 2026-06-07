@@ -13,7 +13,11 @@ def unsupervised_loss(w_primary_logits, correcting_logits):
     
     return unsup_loss
 
-def compute_lambda(epoch):
+def compute_lambda(epoch):  
+    """
+    needs to be revised for both its importance and 
+    the number of epochs = 10 needs to passed as 3rd stage num_epoch.
+    """
     return min(1.0, epoch/10)
 
 def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
