@@ -1,4 +1,3 @@
-from itertools import cycle
 import torch
 
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
@@ -31,8 +30,16 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
     models["correcting"].eval()
     models["ancillary"].freeze()
     models["ancillary"].eval()
-    for batch_idx, ((f_imgs, f_bbox, f_masks), (w_imgs, w_masks)) in \
-        enumerate(zip(data_loaders["f_loader"], cycle(data_loaders["w_loader"]))):
+    
+    f_loader_iter = iter(data_loaders["f_loader"])
+    for batch_idx, (w_imgs, w_masks) in enumerate(data_loaders["w_loader"]):
+        try:
+            f_imgs, _, f_masks = next(f_loader_iter)
+        except StopIteration:
+            # Restart the iterator cleanly when it runs out of data
+            f_loader_iter = iter(data_loaders["f_loader"])
+            f_imgs, _, f_masks = next(f_loader_iter)
+
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
         w_imgs, w_masks = w_imgs.to(device), w_masks.to(device)
 
@@ -64,9 +71,9 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
 
 
         if batch_idx % 20 == 0:
-            logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loaders['f_loader'])} Primary Loss:{primary_loss.item():.3f} | Unsupervised Loss:{unsup_loss.item():.3f} & Combined Loss:{loss.item():.3f}")
+            logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loaders['w_loader'])} Primary Loss:{primary_loss.item():.3f} | Unsupervised Loss:{unsup_loss.item():.3f} & Combined Loss:{loss.item():.3f}")
     
-    avg_loss = total_loss/ len(data_loaders["f_loader"])
+    avg_loss = total_loss/ len(data_loaders["w_loader"])
     logger.info(f"PRIMARY MODEL Epoch:{epoch} average train Loss:{avg_loss:.3f}")
     
     return avg_loss
