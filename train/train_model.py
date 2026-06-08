@@ -402,6 +402,8 @@ def train(config: Config, checkpoint_path=None):
     if config.training['training_stage'] == 1:
         models['ancillary'] = models['ancillary'].to(device)
         if torch.cuda.device_count() > 1:
+            models['ancillary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['ancillary'])
+
             models['ancillary'] = DDP(
                     module=models['ancillary'],
                     device_ids=[local_rank],
@@ -414,6 +416,9 @@ def train(config: Config, checkpoint_path=None):
             models['correcting'] = models['correcting'].to(device)
 
             if torch.cuda.device_count() > 1:
+                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
+                models['correcting'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['correcting'])
+
                 models['primary'] = DDP(models['primary'], device_ids=[local_rank])
                 models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
 
@@ -421,6 +426,8 @@ def train(config: Config, checkpoint_path=None):
             models['primary'] = models['primary'].to(device)
 
             if torch.cuda.device_count() > 1:
+                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
+
                 models['primary'] = DDP(models['primary'], device_ids=[local_rank])
             
         else: ## if all stages trained in one time
@@ -429,6 +436,10 @@ def train(config: Config, checkpoint_path=None):
             models['correcting'] = models['correcting'].to(device)
 
             if torch.cuda.device_count() > 1:
+                models['ancillary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['ancillary'])
+                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
+                models['correcting'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['correcting'])
+
                 models['ancillary'] = DDP(models['ancillary'], device_ids=[local_rank])
                 models['primary'] = DDP(models['primary'], device_ids=[local_rank])
                 models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
