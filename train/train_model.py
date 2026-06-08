@@ -9,6 +9,10 @@ from torch.utils.data import DataLoader, random_split
 from torch.optim import SGD, AdamW, lr_scheduler
 from torch.cuda.amp import autocast, GradScaler
 
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DistributedSampler
+
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
@@ -27,8 +31,8 @@ from train_2nd_stage import train_correction_model_epoch, validate_correction_mo
 from train_3rd_stage import train_primary_model_epoch, validate_primary_model
 
 
-def stage1_training_loop(starting_epoch, config: Config, train_loaders, val_loader, 
-                         train_transform, val_transform, device, models,
+def stage1_training_loop(starting_epoch, config: Config, train_loaders, train_samplers, 
+                         val_loader, train_transform, val_transform, device, models,
                          optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
     lrs = []
@@ -38,6 +42,8 @@ def stage1_training_loop(starting_epoch, config: Config, train_loaders, val_load
     for epoch in range(starting_epoch, config.training['stage1_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage1_num_epochs']}")
         
+        if train_samplers['f1_sampler']:
+            train_samplers['f1_sampler'].set_epoch(epoch)
         _ = train_ancillary_model_epoch(
                     epoch=epoch,
                     data_loader=train_loaders['f1_loader'], 
@@ -95,8 +101,8 @@ def stage1_training_loop(starting_epoch, config: Config, train_loaders, val_load
 
     return 
 
-def stage2_training_loop(starting_epoch, config: Config, train_loaders, val_loader, 
-                         train_transform, val_transform, device, models,
+def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_samplers, 
+                         val_loader, train_transform, val_transform, device, models,
                          optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
     prim_lrs, corr_lrs = [], []
@@ -106,6 +112,8 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, val_load
     for epoch in range(starting_epoch, config.training['stage2_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage2_num_epochs']}")
         
+        if train_samplers['f_sampler']:
+            train_samplers['f_sampler'].set_epoch(epoch)
         _, _ = train_correction_model_epoch(
                     epoch=epoch,
                     data_loader=train_loaders['f_loader'],
@@ -182,8 +190,8 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, val_load
     lr_vs_epoch(config.training['stage2_num_epochs']-starting_epoch+1, prim_lrs, save_dir)
     lr_vs_epoch(config.training['stage2_num_epochs']-starting_epoch+1, corr_lrs, save_dir)
 
-def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_loader, 
-                         train_transform, val_transform,device, models,
+def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_samplers, 
+                         val_loader, train_transform, val_transform,device, models,
                          optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
     lr = []
@@ -192,6 +200,10 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, val_load
     logger.info(f"Stage 3 training dataset size: {(len(train_loaders['f_loader'])+len(train_loaders['w_loader']))*config.training['batch_size']}")
     for epoch in range(starting_epoch, config.training['stage3_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage3_num_epochs']}")
+        
+        if train_samplers['w_sampler'] and train_samplers['f_sampler']:
+            train_samplers['w_sampler'].set_epoch(epoch)
+            train_samplers['f_sampler'].set_epoch(epoch)
         _ = train_primary_model_epoch(
                 epoch=epoch,
                 data_loaders=train_loaders,
@@ -253,6 +265,11 @@ def train(config: Config, checkpoint_path=None):
     dataset_path = os.path.join(ROOT, config.data['dataset_path'])
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.device_count() > 1:
+        dist.init_process_group(backend="nccl")
+        local_rank = int(os.environ["LOCAL_RANK"])
+        torch.cuda.set_device(local_rank)
+        device = torch.device("cuda", local_rank)
 
     train_transform = A.Compose([
         A.RandomScale(scale_limit=0.5, p=1.0),
@@ -317,33 +334,47 @@ def train(config: Config, checkpoint_path=None):
                                data_type="val",
                                is_sup= True,
                                transform=val_transform)
-    
+    train_samplers = {
+        "f_sampler": DistributedSampler(fully_sup_train_dataset) if dist.is_initialized() else None,
+        "w_sampler": DistributedSampler(weak_train_dataset) if dist.is_initialized() else None,
+        "f1_sampler": DistributedSampler(f1_dataset) if dist.is_initialized() else None,
+        "f2_sampler": DistributedSampler(f2_dataset) if dist.is_initialized() else None,
+    }
+
     train_loaders = {
         "f_loader": DataLoader(
             dataset=fully_sup_train_dataset, 
             batch_size=config.training['batch_size'],
-            shuffle= True, pin_memory= True,
+            sampler=train_samplers['f_sampler'],
+            shuffle=(train_samplers['f_sampler'] is None), 
+            pin_memory= True,
             num_workers=4
             ),
 
         "w_loader": DataLoader(
             dataset=weak_train_dataset, 
             batch_size=config.training['batch_size'],
-            shuffle= True, pin_memory= True,
+            sampler=train_samplers['w_sampler'],
+            shuffle=(train_samplers['w_sampler'] is None), 
+            pin_memory= True,
             num_workers=4
             ),
 
         "f1_loader": DataLoader(
             dataset=f1_dataset, 
             batch_size=config.training['batch_size'],
-            shuffle= True, pin_memory= True,
+            sampler=train_samplers['f1_sampler'],
+            shuffle=(train_samplers['f1_sampler'] is None), 
+            pin_memory= True,
             num_workers=4
             ),
 
         "f2_loader": DataLoader(
             dataset=f2_dataset, 
             batch_size=config.training['batch_size'],
-            shuffle= True, pin_memory= True,
+            sampler=train_samplers['f2_sampler'],
+            shuffle=(train_samplers['f2_sampler'] is None), 
+            pin_memory= True,
             num_workers=4
             )
     }
@@ -367,29 +398,40 @@ def train(config: Config, checkpoint_path=None):
         )
     }
 
+    ## Data parallelisim
     if config.training['training_stage'] == 1:
-        if torch.cuda.device_count() > 1:
-            models['ancillary'] = torch.nn.DataParallel(models['ancillary'])
         models['ancillary'] = models['ancillary'].to(device)
+        if torch.cuda.device_count() > 1:
+            models['ancillary'] = DDP(
+                    module=models['ancillary'],
+                    device_ids=[local_rank],
+                    output_device=local_rank
+                )
 
     else:
-        if torch.cuda.device_count() > 1:
-            if config.training['training_stage'] == 2:        
-                models['primary'] = torch.nn.DataParallel(models['primary'])
-                models['correcting'] = torch.nn.DataParallel(models['correcting'])
-            
-            elif config.training['training_stage'] == 3:
-                models['primary'] = torch.nn.DataParallel(models['primary'])
-            
-            else: ## if all stages trained in one time
-                models['ancillary'] = torch.nn.DataParallel(models['ancillary'])
-                models['primary'] = torch.nn.DataParallel(models['primary'])
-                models['correcting'] = torch.nn.DataParallel(models['correcting'])
-            
+        if config.training['training_stage'] == 2:
+            models['primary'] = models['primary'].to(device)
+            models['correcting'] = models['correcting'].to(device)
 
-        models['primary'] = models['primary'].to(device)
-        models['ancillary'] = models['ancillary'].to(device)
-        models['correcting'] = models['correcting'].to(device)
+            if torch.cuda.device_count() > 1:
+                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
+                models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
+
+        elif config.training['training_stage'] == 3:
+            models['primary'] = models['primary'].to(device)
+
+            if torch.cuda.device_count() > 1:
+                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
+            
+        else: ## if all stages trained in one time
+            models['ancillary'] = models['ancillary'].to(device)
+            models['primary'] = models['primary'].to(device)
+            models['correcting'] = models['correcting'].to(device)
+
+            if torch.cuda.device_count() > 1:
+                models['ancillary'] = DDP(models['ancillary'], device_ids=[local_rank])
+                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
+                models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
     
 
     optimizers = {
@@ -580,47 +622,119 @@ def train(config: Config, checkpoint_path=None):
     
     if config.training['training_stage'] == 1:
         stage1_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform,
-            val_transform, device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 1 Training finished successfully")
 
     elif config.training['training_stage'] == 2:
         stage2_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform, 
-            val_transform, device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 2 Training finished successfully")
 
     elif config.training['training_stage'] == 3:
         stage3_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform, 
-            val_transform,device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 3 Training finished successfully")
 
     else:
         stage1_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform,
-            val_transform, device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 1 Training finished successfully")
 
         stage2_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform, 
-            val_transform, device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 2 Training finished successfully")
 
         stage3_training_loop(
-            starting_epoch, config, train_loaders, val_loader, train_transform, 
-            val_transform,device, models, optimizers, schedulers, loss_funcs, 
-            scaler, logger, save_dir
+            starting_epoch=starting_epoch, 
+            config=config, 
+            train_loaders=train_loaders, 
+            train_samplers=train_samplers,
+            val_loader=val_loader, 
+            train_transform=train_transform,
+            val_transform=val_transform, 
+            device=device, 
+            models=models, 
+            optimizers=optimizers, 
+            schedulers=schedulers, 
+            loss_funcs=loss_funcs, 
+            scaler=scaler, 
+            logger=logger, 
+            save_dir=save_dir
         )
         logger.info("Stage 3 Training finished successfully")
 
