@@ -102,3 +102,35 @@ def imbalance_indicator(preds, targets, num_classes):
         gt,
         reduction="batchmean"
     ).item()
+
+def flip_image(x):
+    return torch.flip(x, dims=[-1])
+
+
+def flip_bboxes_xyxy(bboxes, img_width):
+    """
+    bboxes: [N, 4] in (x1, y1, x2, y2)
+    """
+    flipped = bboxes.clone()
+    flipped[:, 0] = img_width - bboxes[:, 2]
+    flipped[:, 2] = img_width - bboxes[:, 0]
+    return flipped
+
+
+def tta_flip_ancillary(model, imgs, bboxes=None):
+    """
+    Flip TTA for segmentation model with optional bbox input
+    """
+    logits1 = model(imgs, bboxes)
+
+    imgs_flip = flip_image(imgs)
+
+    if bboxes is not None:
+        bboxes_flip = flip_bboxes_xyxy(bboxes, imgs.shape[-1])
+    else:
+        bboxes_flip = None
+
+    logits2 = model(imgs_flip, bboxes_flip)
+    logits2 = flip_image(logits2)
+
+    return (logits1 + logits2) / 2

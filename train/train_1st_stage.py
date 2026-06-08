@@ -2,6 +2,7 @@ import torch
 from utils.eval import compute_confusion_matrix, plot_confusion_matrix
 from utils.eval import compute_per_class_accuracy,  compute_iou_per_class
 from utils.eval import boundary_f1, imbalance_indicator
+from utils.eval import tta_flip_ancillary
 
 def train_ancillary_model_epoch(epoch, data_loader, device, models, optimizers, loss_funcs, schedulers, accum_steps, logger):
     total_loss = 0.0
@@ -62,7 +63,7 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
             bboxes = bboxes.to(device)
             masks = masks.to(device).long()
 
-            outputs = models["ancillary"](imgs, bboxes)
+            outputs = tta_flip_ancillary(models["ancillary"], imgs, bboxes)
 
             ce_loss = loss_funcs["ce_loss"](outputs, masks)
             total_ce_loss += ce_loss.item()
