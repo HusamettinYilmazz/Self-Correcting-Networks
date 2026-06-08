@@ -38,7 +38,7 @@ def stage1_training_loop(starting_epoch, config: Config, train_loaders, train_sa
     lrs = []
     best_miou = 0.0
     logger.info("Stage 1: Ancillary Model Training")
-    logger.info(f"Stage 1 training dataset size: {len(train_loaders['f1_loader'])*config.training['batch_size']}")
+    logger.info(f"Stage 1 training dataset size: {len(train_loaders["f1_loader"].dataset)}")
     for epoch in range(starting_epoch, config.training['stage1_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage1_num_epochs']}")
         
