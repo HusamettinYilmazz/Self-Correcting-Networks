@@ -63,7 +63,7 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
             bboxes = bboxes.to(device)
             masks = masks.to(device).long()
 
-            outputs = tta_flip_ancillary(models["ancillary"], imgs, bboxes)
+            outputs = models["ancillary"](imgs, bboxes)
 
             ce_loss = loss_funcs["ce_loss"](outputs, masks)
             total_ce_loss += ce_loss.item()
