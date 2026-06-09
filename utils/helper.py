@@ -4,6 +4,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import torch
+import torch.distributed as dist
 
 class Config:
     def __init__(self, config_dict):
@@ -26,7 +27,12 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
                     val_acc, config, train_transform, 
                     val_transform, save_dir, model_name="model"):
     
+    if dist.is_available() and dist.is_initialized():
+        if dist.get_rank() != 0:
+            return
+
     checkpoint_path = os.path.join(save_dir, f'epoch{epoch}_{model_name}.pth')
+    tmp_path = checkpoint_path + ".tmp"
 
     state_dict = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
     torch.save({
@@ -40,7 +46,8 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
             'train_transform': train_transform,
             'val_transform': val_transform
 
-        }, checkpoint_path)
+        }, tmp_path)
+    os.replace(tmp_path, checkpoint_path)
 
     print(f"Epoch:{epoch} checkpoint has been saved at:{checkpoint_path}")
 
