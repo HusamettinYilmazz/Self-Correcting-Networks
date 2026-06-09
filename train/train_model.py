@@ -368,7 +368,7 @@ def train(config: Config, checkpoint_path=None):
             )
     }
     val_loader = DataLoader(dataset=val_dataset, 
-                            batch_size=config.training['batch_size'], 
+                            batch_size=config.training['val_batch_size'], 
                             shuffle= True, pin_memory= True,
                             num_workers=4)
 

@@ -1,7 +1,7 @@
 
 experiment:
   name: "stage3"
-  version: "1.0"
+  version: "8.0"
   seed: 31
 
 data:
@@ -45,6 +45,7 @@ training:
   continue_traning: False
   optimizer: "AdamW"
   batch_size: 8
+  val_batch_size: 16
   grad_acc_steps: 2
   stage1_num_epochs: 650
   stage2_num_epochs: 650
