@@ -103,34 +103,84 @@ def imbalance_indicator(preds, targets, num_classes):
         reduction="batchmean"
     ).item()
 
-def flip_image(x):
-    return torch.flip(x, dims=[-1])
-
-
-def flip_bboxes_xyxy(bboxes, img_width):
+def multiscale_flip_tta(model, imgs, bboxes, scales=(0.5, 0.75, 1.0, 1.25), use_flip=True):
     """
-    bboxes: [N, 4] in (x1, y1, x2, y2)
+    Returns:
+        logits: [B, C, H, W]
     """
-    flipped = bboxes.clone()
-    flipped[:, 0] = img_width - bboxes[:, 2]
-    flipped[:, 2] = img_width - bboxes[:, 0]
-    return flipped
 
+    # model.eval()
 
-def tta_flip_ancillary(model, imgs, bboxes=None):
-    """
-    Flip TTA for segmentation model with optional bbox input
-    """
-    logits1 = model(imgs, bboxes)
+    # device = imgs.device
+    # imgs = imgs.to(device)
+    # bboxes = bboxes.to(device)
 
-    imgs_flip = flip_image(imgs)
+    B, C, H, W = imgs.shape
+    num_scales = 0
 
-    if bboxes is not None:
-        bboxes_flip = flip_bboxes_xyxy(bboxes, imgs.shape[-1])
-    else:
-        bboxes_flip = None
+    total_logits = None
 
-    logits2 = model(imgs_flip, bboxes_flip)
-    logits2 = flip_image(logits2)
+    for s in scales:
 
-    return (logits1 + logits2) / 2
+        # -------------------------
+        # scale image
+        # -------------------------
+        scaled_imgs = F.interpolate(
+            imgs,
+            scale_factor=s,
+            mode="bilinear",
+            align_corners=False,
+            recompute_scale_factor=True
+        )
+
+        # -------------------------
+        # scale bbox
+        # -------------------------
+        bboxes_scaled = bboxes.clone().float()
+        bboxes_scaled[:, :, [0, 2]] *= s  # x1, x2
+        bboxes_scaled[:, :, [1, 3]] *= s  # y1, y2
+
+        logits = model(scaled_imgs, bboxes_scaled)
+
+        # resize back to original resolution
+        logits = F.interpolate(
+            logits,
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False
+        )
+
+        total_logits = logits if total_logits is None else total_logits + logits
+        num_scales += 1
+
+        # -------------------------
+        # FLIP TTA
+        # -------------------------
+        if use_flip:
+            flipped_imgs = torch.flip(scaled_imgs, dims=[-1])
+
+            W_s = scaled_imgs.shape[-1]
+
+            bboxes_flipped = bboxes_scaled.clone()
+
+            x1 = bboxes_scaled[:, :, 0].clone()
+            x2 = bboxes_scaled[:, :, 2].clone()
+
+            bboxes_flipped[:, :, 0] = W_s - x2
+            bboxes_flipped[:, :, 2] = W_s - x1
+
+            logits_f = model(flipped_imgs, bboxes_flipped)
+
+            logits_f = torch.flip(logits_f, dims=[-1])
+
+            logits_f = F.interpolate(
+                logits_f,
+                size=(H, W),
+                mode="bilinear",
+                align_corners=False
+            )
+
+            total_logits += logits_f
+            num_scales += 1
+
+    return total_logits / num_scales
