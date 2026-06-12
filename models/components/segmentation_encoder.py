@@ -6,12 +6,14 @@ import timm
 
 from .aspp import ASPPModule
 
+from .backbone_enums import BackBoneEnums
+
 class DeepLabV3PlusEncoder(nn.Module):
     def __init__(self, backbone: str = "xception65", pretrained: bool = True):
         super().__init__()
         self.backbone_name = backbone
 
-        if backbone == "resnet101":
+        if backbone == BackBoneEnums.RESNET101.value:
             base = tvm.resnet101(pretrained=pretrained, replace_stride_with_dilation=[False, True, True])
             self.layer0 = nn.Sequential(base.conv1, base.bn1, base.relu, base.maxpool)
             self.layer1 = base.layer1
@@ -21,7 +23,7 @@ class DeepLabV3PlusEncoder(nn.Module):
             aspp_in = 2048
             self.low_level_channels = 256
         
-        elif backbone == "xception65":
+        elif backbone == BackBoneEnums.XCEPTION65.value:
             self.backbone = timm.create_model(
                 "hf_hub:timm/xception65.tf_in1k",
                 pretrained=pretrained,
