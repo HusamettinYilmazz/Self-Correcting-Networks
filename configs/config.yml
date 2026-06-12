@@ -1,7 +1,7 @@
 
 experiment:
   name: "stage3"
-  version: "8.0"
+  version: "9.0"
   seed: 31
 
 data:
@@ -14,7 +14,8 @@ data:
 
 model:
   model_name: ""
-  backbone: ""
+  ancillary_backbone: "xception65"
+  primary_backbone: "xception65"
   correcting_variant: "conv_correction"
   num_classes: 21
   class_labels:
@@ -44,9 +45,9 @@ training:
   training_stage: 1
   continue_traning: False
   optimizer: "AdamW"
-  batch_size: 8
+  batch_size: 4
   val_batch_size: 16
-  grad_acc_steps: 2
+  grad_acc_steps: 4
   stage1_num_epochs: 650
   stage2_num_epochs: 650
   stage3_num_epochs: 65

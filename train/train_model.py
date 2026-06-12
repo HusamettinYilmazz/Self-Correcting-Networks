@@ -374,11 +374,13 @@ def train(config: Config, checkpoint_path=None):
 
     models = {
         "primary": PrimarySegmentationModel(
-            num_classes=config.model["num_classes"]
+            num_classes=config.model["num_classes"],
+            backbone=config.model['primary_backbone']
         ),
         
         "ancillary": AncillarySegmentationModel(
-            num_classes=config.model["num_classes"]
+            num_classes=config.model["num_classes"],
+            backbone=config.model['ancillary_backbone']
         ),
         
         "correcting": SelfCorrectingNetwrokFactory().build_correction_module(
