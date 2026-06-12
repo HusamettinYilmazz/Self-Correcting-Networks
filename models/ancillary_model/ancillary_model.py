@@ -5,7 +5,7 @@ from .boundingbox_model import BoundingBoxEncoder
 from ..components import SegmentationEncoder, SegmentationDecoder
 
 class AncillarySegmentationModel(nn.Module):
-    def __init__(self, num_classes: int, backbone: str = "resnet101", pretrained: bool = True):
+    def __init__(self, num_classes: int, backbone: str = "xception65", pretrained: bool = True):
         super().__init__()
         self.encoder = SegmentationEncoder(backbone, pretrained)
         self.bb_encoder = BoundingBoxEncoder(
