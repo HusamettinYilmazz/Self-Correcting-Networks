@@ -272,9 +272,9 @@ def train(config: Config, checkpoint_path=None):
         device = torch.device("cuda", local_rank)
 
     train_transform = A.Compose([
-        A.RandomScale(scale_limit=(-0.5, 1.0), p=1.0),
-        A.PadIfNeeded(min_height=512, min_width=512),
-        A.RandomCrop(512, 512),
+        A.RandomScale(scale_limit=(0.5, 2.0), p=1.0),
+        A.PadIfNeeded(min_height=513, min_width=513),
+        A.RandomCrop(513, 513),
         A.HorizontalFlip(p=0.5),
 
         A.Normalize(
@@ -285,7 +285,7 @@ def train(config: Config, checkpoint_path=None):
     ])
 
     val_transform = A.Compose([
-        A.Resize(512, 512),
+        A.Resize(513, 513),
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225]

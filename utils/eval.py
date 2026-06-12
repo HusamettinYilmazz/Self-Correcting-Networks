@@ -103,7 +103,7 @@ def imbalance_indicator(preds, targets, num_classes):
         reduction="batchmean"
     ).item()
 
-def multiscale_flip_tta(model, imgs, bboxes, scales=(0.5, 0.75, 1.0, 1.25), use_flip=True):
+def multiscale_flip_tta(model, imgs, bboxes, scales=(0.75, 1.0, 1.25), use_flip=True):
     """
     Returns:
         logits: [B, C, H, W]
