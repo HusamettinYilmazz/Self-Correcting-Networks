@@ -445,19 +445,25 @@ def train(config: Config, checkpoint_path=None):
     
 
     optimizers = {
-        "primary": AdamW(models['primary'].parameters(), 
-                         lr=float(config.training['learning_rate']),
-                         weight_decay=float(config.training['weight_decay'])
+        "primary": SGD(
+            models['primary'].parameters(),
+            lr=float(config.training['learning_rate']),
+            momentum=0.9,
+            weight_decay=float(config.training['weight_decay'])
         ),
 
-        "ancillary": AdamW(models['ancillary'].parameters(), 
-                           lr=float(config.training['learning_rate']),
-                           weight_decay=float(config.training['weight_decay'])
+        "ancillary": SGD(
+            models['ancillary'].parameters(),
+            lr=float(config.training['learning_rate']),
+            momentum=0.9,
+            weight_decay=float(config.training['weight_decay'])
         ),
 
-        "correcting": AdamW(models['correcting'].parameters(), 
-                            lr=float(config.training['correcting_lr']),
-                            weight_decay=float(config.training['weight_decay'])
+        "correcting": SGD(
+            models['correcting'].parameters(),
+            lr=float(config.training['correcting_lr']),
+            momentum=0.9,
+            weight_decay=float(config.training['weight_decay'])
         ),
     }
     
