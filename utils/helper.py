@@ -52,7 +52,11 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
     print(f"Epoch:{epoch} checkpoint has been saved at:{checkpoint_path}")
 
 def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device):
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(
+        checkpoint_path, 
+        map_location=device,
+        weights_only=False
+        )
     epoch = checkpoint['epoch']
     state_dict = checkpoint['model_state_dict']
     if hasattr(model, "module"):
