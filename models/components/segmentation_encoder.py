@@ -28,7 +28,7 @@ class DeepLabV3PlusEncoder(nn.Module):
                 "hf_hub:timm/xception65.tf_in1k",
                 pretrained=pretrained,
                 features_only=True,
-                output_stride=8
+                output_stride=16
             )
 
             self.low_idx = 1
