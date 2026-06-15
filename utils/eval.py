@@ -185,7 +185,11 @@ def multiscale_flip_tta(model, imgs, bboxes, scales=(0.75, 1.0, 1.25), use_flip=
 
     return total_logits / num_scales
 
-def class_balanced_hard_mining(outputs, masks, k_ratio=0.2):
+def class_balanced_hard_mining(outputs, masks, k_ratio=0.2, epoch=None, max_epoch=None):
+    if epoch:
+        max_epoch = max_epoch if max_epoch else 350
+        k_ratio = schedule_topk(epoch, max_epoch)
+    
     loss_map = F.cross_entropy(
         outputs, masks,
         ignore_index=255,
@@ -205,3 +209,6 @@ def class_balanced_hard_mining(outputs, masks, k_ratio=0.2):
 
     hard_loss, _ = torch.topk(loss_flat, k)
     return hard_loss.mean()
+
+def schedule_topk(epoch, max_epoch):
+    return max(0.1, 0.5 * (1 - epoch / max_epoch))

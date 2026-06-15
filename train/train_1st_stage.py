@@ -15,9 +15,15 @@ def train_ancillary_model_epoch(epoch, data_loader, device, models, optimizers, 
         
         outputs = models["ancillary"](imgs, bboxs)
 
-        ce_loss = loss_funcs["ce_loss"](outputs, masks)
+
+        ce_loss = class_balanced_hard_mining(
+                        outputs=outputs,
+                        masks= masks,
+                        k_ratio=0.3,
+                        epoch=epoch,
+                    )
         dice_loss = loss_funcs["dice_loss"](outputs, masks)
-        loss = ce_loss + dice_loss
+        loss = ce_loss + 0.5 * dice_loss
         total_loss += loss.item()
 
         acc_loss = loss / accum_steps
