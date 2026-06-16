@@ -212,3 +212,6 @@ def class_balanced_hard_mining(outputs, masks, k_ratio=0.2, epoch=None, max_epoc
 
 def schedule_topk(epoch, max_epoch):
     return max(0.1, 0.5 * (1 - epoch / max_epoch))
+
+def ce_weight(epoch, max_epoch):
+    return max(0.5, 1.0 - 0.5 * epoch / max_epoch)

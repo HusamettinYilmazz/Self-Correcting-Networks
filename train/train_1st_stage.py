@@ -2,7 +2,7 @@ import torch
 from utils.eval import compute_confusion_matrix, plot_confusion_matrix
 from utils.eval import compute_per_class_accuracy,  compute_iou_per_class
 from utils.eval import boundary_f1, imbalance_indicator
-from utils.eval import multiscale_flip_tta, class_balanced_hard_mining
+from utils.eval import multiscale_flip_tta, ce_weight
 
 def train_ancillary_model_epoch(epoch, data_loader, device, models, optimizers, loss_funcs, schedulers, accum_steps, logger):
     total_loss = 0.0
@@ -15,15 +15,10 @@ def train_ancillary_model_epoch(epoch, data_loader, device, models, optimizers, 
         
         outputs = models["ancillary"](imgs, bboxs)
 
-
-        ce_loss = class_balanced_hard_mining(
-                        outputs=outputs,
-                        masks= masks,
-                        k_ratio=0.3,
-                        epoch=epoch,
-                    )
+        ce_w = ce_weight(epoch, 200)
+        ce_loss = loss_funcs["ce_loss"](outputs, masks)
         dice_loss = loss_funcs["dice_loss"](outputs, masks)
-        loss = ce_loss + dice_loss
+        loss = ce_w * ce_loss + dice_loss
         total_loss += loss.item()
 
         acc_loss = loss / accum_steps
