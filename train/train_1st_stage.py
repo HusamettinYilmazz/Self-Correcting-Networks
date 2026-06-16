@@ -15,10 +15,9 @@ def train_ancillary_model_epoch(epoch, data_loader, device, models, optimizers, 
         
         outputs = models["ancillary"](imgs, bboxs)
 
-        ce_w = ce_weight(epoch, 200)
         ce_loss = loss_funcs["ce_loss"](outputs, masks)
         dice_loss = loss_funcs["dice_loss"](outputs, masks)
-        loss = ce_w * ce_loss + dice_loss
+        loss = ce_loss + dice_loss
         total_loss += loss.item()
 
         acc_loss = loss / accum_steps
