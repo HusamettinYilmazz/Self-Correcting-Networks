@@ -47,7 +47,7 @@ training:
   optimizer: "AdamW"
   batch_size: 4
   val_batch_size: 16
-  grad_acc_steps: 4
+  grad_acc_steps: 2
   stage1_num_epochs: 650
   stage2_num_epochs: 650
   stage3_num_epochs: 65
