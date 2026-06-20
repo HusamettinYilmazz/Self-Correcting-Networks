@@ -44,10 +44,10 @@ model:
 training:
   training_stage: 1
   continue_traning: False
-  optimizer: "AdamW"
+  optimizer: "SGD"
   batch_size: 4
   val_batch_size: 16
-  grad_acc_steps: 2
+  grad_acc_steps: 1
   stage1_num_epochs: 650
   stage2_num_epochs: 650
   stage3_num_epochs: 65
