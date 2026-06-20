@@ -13,7 +13,8 @@ def train_correction_model_epoch(epoch, data_loader, device, models, optimizers,
 
     models["primary"].train()
     models["correcting"].train()
-    models["ancillary"].freeze()
+    ancillary_module = models["ancillary"].module if hasattr(models["ancillary"], "module") else models["ancillary"]
+    ancillary_module.freeze()
     models["ancillary"].eval()
     for batch_idx, (imgs, bboxs, masks) in enumerate(data_loader):
         imgs = imgs.to(device)

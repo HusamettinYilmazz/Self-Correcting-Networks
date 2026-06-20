@@ -26,6 +26,5 @@ class AncillarySegmentationModel(nn.Module):
         return self.decoder(low, high, target_size=x.shape[-2:])
 
     def freeze(self):
-        model = self.module if hasattr(self, "module") else self
-        for p in model.parameters():
-            p.requires_grad = False
+        for p in self.parameters():
+            p.requires_grad_(False)
