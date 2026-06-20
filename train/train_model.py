@@ -398,51 +398,30 @@ def train(config: Config, checkpoint_path=None):
     }
 
     ## Data parallelisim
-    if config.training['training_stage'] == 1:
-        models['ancillary'] = models['ancillary'].to(device)
+    # if config.training['training_stage'] == 1:
+    ## All the stages need the ancillary model
+    models['ancillary'] = models['ancillary'].to(device)
+    if torch.cuda.device_count() > 1:
+        models['ancillary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['ancillary'])
+
+        models['ancillary'] = DDP(
+                module=models['ancillary'],
+                device_ids=[local_rank],
+                output_device=local_rank
+            )
+
+    ## All the other stages need both primary and correcting
+    if config.training['training_stage'] != 1:
+        models['primary'] = models['primary'].to(device)
+        models['correcting'] = models['correcting'].to(device)
+
         if torch.cuda.device_count() > 1:
-            models['ancillary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['ancillary'])
+            models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
+            models['correcting'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['correcting'])
 
-            models['ancillary'] = DDP(
-                    module=models['ancillary'],
-                    device_ids=[local_rank],
-                    output_device=local_rank
-                )
+            models['primary'] = DDP(models['primary'], device_ids=[local_rank])
+            models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
 
-    else:
-        if config.training['training_stage'] == 2:
-            models['primary'] = models['primary'].to(device)
-            models['correcting'] = models['correcting'].to(device)
-
-            if torch.cuda.device_count() > 1:
-                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
-                models['correcting'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['correcting'])
-
-                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
-                models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
-
-        elif config.training['training_stage'] == 3:
-            models['primary'] = models['primary'].to(device)
-
-            if torch.cuda.device_count() > 1:
-                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
-
-                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
-            
-        else: ## if all stages trained in one time
-            models['ancillary'] = models['ancillary'].to(device)
-            models['primary'] = models['primary'].to(device)
-            models['correcting'] = models['correcting'].to(device)
-
-            if torch.cuda.device_count() > 1:
-                models['ancillary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['ancillary'])
-                models['primary'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['primary'])
-                models['correcting'] = nn.SyncBatchNorm.convert_sync_batchnorm(models['correcting'])
-
-                models['ancillary'] = DDP(models['ancillary'], device_ids=[local_rank])
-                models['primary'] = DDP(models['primary'], device_ids=[local_rank])
-                models['correcting'] = DDP(models['correcting'], device_ids=[local_rank])
-    
 
     optimizers = {
         "primary": SGD(
