@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.parallel as parallel
 
 from .boundingbox_model import BoundingBoxEncoder
 from ..components import SegmentationEncoder, SegmentationDecoder
@@ -26,5 +27,13 @@ class AncillarySegmentationModel(nn.Module):
         return self.decoder(low, high, target_size=x.shape[-2:])
 
     def freeze(self):
-        for p in self.parameters():
-            p.requires_grad_(False)
+        model = self._unwrap(self)
+        for p in model.parameters():
+            p.requires_grad = False
+
+    @staticmethod
+    def _unwrap(model):
+        ## handles DDP, DataParallel
+        if isinstance(model, (parallel.DistributedDataParallel, parallel.DataParallel)):
+            return model.module
+        return model
