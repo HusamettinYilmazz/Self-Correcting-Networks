@@ -26,9 +26,11 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
     
     optimizers["primary"].zero_grad()
     models["primary"].train()
-    models["correcting"].freeze()
+    correcting_module = models["correcting"].module if hasattr(models["correcting"], "module") else models["correcting"]
+    correcting_module.freeze()
     models["correcting"].eval()
-    models["ancillary"].freeze()
+    ancillary_module = models["ancillary"].module if hasattr(models["ancillary"], "module") else models["ancillary"]
+    ancillary_module.freeze()
     models["ancillary"].eval()
     
     f_loader_iter = iter(data_loaders["f_loader"])
