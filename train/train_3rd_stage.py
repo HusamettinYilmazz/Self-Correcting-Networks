@@ -2,7 +2,7 @@ import torch
 
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
 from utils.eval import compute_per_class_accuracy, plot_confusion_matrix
-from utils.eval import unsupervised_loss
+from utils.eval import unsupervised_loss, soft_dice_unsup
 
 def compute_lambda(epoch):  
     """
@@ -54,8 +54,9 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
         primary_ce_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
         primary_dice_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
         primary_loss = primary_ce_loss + primary_dice_loss
-        unsup_loss = unsupervised_loss(w_primary_logits, correcting_logits)
-        
+        unsup_ce_loss = unsupervised_loss(w_primary_logits, correcting_logits)
+        unsup_dice_loss = soft_dice_unsup(w_primary_logits, correcting_logits)
+        unsup_loss = unsup_ce_loss + unsup_dice_loss
         # lambda_u = compute_lambda(epoch)
 
         loss = primary_loss + unsup_loss

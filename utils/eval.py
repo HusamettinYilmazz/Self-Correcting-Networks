@@ -224,3 +224,16 @@ def unsupervised_loss(w_primary_logits, correcting_logits):
     unsup_loss = -(pseudo * log_probs).sum(dim=1).mean()
     
     return unsup_loss
+
+def soft_dice_unsup(student_logits, teacher_probs, smooth=1e-6):
+    student = torch.softmax(student_logits, dim=1)
+    teacher = teacher_probs.detach()
+
+    student = student.reshape(student.size(0), student.size(1), -1)
+    teacher = teacher.reshape(teacher.size(0), teacher.size(1), -1)
+
+    intersection = (student * teacher).sum(-1)
+    union = student.sum(-1) + teacher.sum(-1)
+
+    dice = (2 * intersection + smooth) / (union + smooth)
+    return 1 - dice.mean()
