@@ -2,15 +2,7 @@ import torch
 
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
 from utils.eval import compute_per_class_accuracy, plot_confusion_matrix
-
-def unsupervised_loss(w_primary_logits, correcting_logits):
-
-    log_probs = torch.log_softmax(w_primary_logits, dim=1)
-    pseudo = torch.softmax(correcting_logits, dim=1).detach()
-
-    unsup_loss = -(pseudo * log_probs).sum(dim=1).mean()
-    
-    return unsup_loss
+from utils.eval import unsupervised_loss
 
 def compute_lambda(epoch):  
     """

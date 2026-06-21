@@ -215,3 +215,12 @@ def schedule_topk(epoch, max_epoch):
 
 def ce_weight(epoch, max_epoch):
     return max(0.5, 1.0 - 0.5 * epoch / max_epoch)
+
+def unsupervised_loss(w_primary_logits, correcting_logits):
+
+    log_probs = torch.log_softmax(w_primary_logits, dim=1)
+    pseudo = torch.softmax(correcting_logits, dim=1).detach()
+
+    unsup_loss = -(pseudo * log_probs).sum(dim=1).mean()
+    
+    return unsup_loss
