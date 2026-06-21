@@ -558,7 +558,7 @@ def train(config: Config, checkpoint_path=None):
 
             ## try primary&correcting schedulers = ancillary scheduler
             schedulers['primary'] = ancillary_state['scheduler']
-            # schedulers['correcting'] = ancillary_state['scheduler']
+            schedulers['correcting'] = ancillary_state['scheduler']
 
         elif config.training['training_stage'] == 3:
             if config.training['continue_traning']:
