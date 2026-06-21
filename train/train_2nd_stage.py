@@ -2,6 +2,7 @@ import torch
 
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
 from utils.eval import compute_per_class_accuracy, plot_confusion_matrix
+from utils.eval import ce_weight
 
 def train_correction_model_epoch(epoch, data_loader, device, models, optimizers, 
                                  loss_funcs, schedulers, accum_steps, logger):
@@ -36,8 +37,9 @@ def train_correction_model_epoch(epoch, data_loader, device, models, optimizers,
         primary_dice_loss = loss_funcs["dice_loss"](primary_logits, masks)
         correcting_dice_loss = loss_funcs["dice_loss"](correcting_logits, masks)
 
+        correcting_dice_weight = ce_weight(epoch=epoch, max_epoch=300) ** -1
         primary_loss = primary_ce_loss + primary_dice_loss
-        correcting_loss = correcting_ce_loss + correcting_dice_loss
+        correcting_loss = correcting_ce_loss + correcting_dice_weight * correcting_dice_loss
 
         total_primary_loss += primary_loss.item()
         total_correcting_loss += correcting_loss.item()
