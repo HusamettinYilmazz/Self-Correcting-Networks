@@ -37,8 +37,8 @@ def train_correction_model_epoch(epoch, data_loader, device, models, optimizers,
         primary_dice_loss = loss_funcs["dice_loss"](primary_logits, masks)
         correcting_dice_loss = loss_funcs["dice_loss"](correcting_logits, masks)
 
-        ce_weight = ce_weight(epoch=epoch, max_epoch=300)
-        primary_loss = ce_weight * primary_ce_loss + primary_dice_loss
+        weighted_ce = ce_weight(epoch=epoch, max_epoch=300)
+        primary_loss = weighted_ce * primary_ce_loss + primary_dice_loss
         correcting_loss = correcting_ce_loss + correcting_dice_loss
         # correcting_loss = correcting_dice_loss
 
