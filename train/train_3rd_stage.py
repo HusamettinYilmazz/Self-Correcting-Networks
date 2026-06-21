@@ -59,9 +59,9 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
 
         primary_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
         unsup_loss = unsupervised_loss(w_primary_logits, correcting_logits)
-        lambda_u = compute_lambda(epoch)
+        # lambda_u = compute_lambda(epoch)
 
-        loss = primary_loss + lambda_u * unsup_loss
+        loss = primary_loss + unsup_loss
         
         total_loss += loss.item()
 
