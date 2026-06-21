@@ -32,14 +32,15 @@ def train_correction_model_epoch(epoch, data_loader, device, models, optimizers,
         )
 
         primary_ce_loss = loss_funcs["ce_loss"](primary_logits, masks)
-        correcting_ce_loss = loss_funcs["ce_loss"](correcting_logits, masks)
+        # correcting_ce_loss = loss_funcs["ce_loss"](correcting_logits, masks)
 
         primary_dice_loss = loss_funcs["dice_loss"](primary_logits, masks)
         correcting_dice_loss = loss_funcs["dice_loss"](correcting_logits, masks)
 
-        correcting_dice_weight = ce_weight(epoch=epoch, max_epoch=300) ** -1
+        # correcting_dice_weight = ce_weight(epoch=epoch, max_epoch=300) ** -1
         primary_loss = primary_ce_loss + primary_dice_loss
-        correcting_loss = correcting_ce_loss + correcting_dice_weight * correcting_dice_loss
+        # correcting_loss = correcting_ce_loss + correcting_dice_loss
+        correcting_loss = correcting_dice_loss
 
         total_primary_loss += primary_loss.item()
         total_correcting_loss += correcting_loss.item()
@@ -62,7 +63,7 @@ def train_correction_model_epoch(epoch, data_loader, device, models, optimizers,
 
         if batch_idx % 20 == 0:
             logger.info(f"TRAIN: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loader)} Primary model loss:{primary_ce_loss.item():.3f} | Primary Dice Loss:{primary_dice_loss.item():.3f} | Primary Loss:{primary_loss.item():.3f}")
-            logger.info(f"Correcting network loss:{correcting_ce_loss.item():.3f} | Correcting Dice Loss:{correcting_dice_loss.item():.3f} | Correcting Loss:{correcting_loss.item():.3f}")
+            logger.info(f"Correcting Dice Loss:{correcting_dice_loss.item():.3f} | Correcting Loss:{correcting_loss.item():.3f}")
     primary_avg_loss = total_primary_loss/ len(data_loader)
     correcting_avg_loss = total_correcting_loss/ len(data_loader)
     logger.info(f"PRIMARY MODEL Epoch:{epoch} average train Loss:{primary_avg_loss:.3f}")
