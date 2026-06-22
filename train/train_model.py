@@ -106,10 +106,12 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                          optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
     prim_lrs, corr_lrs = [], []
-    best_miou = 0.0
+    corr_best_miou = 0.0
+    prim_best_miou = 0.0
     logger.info("Stage 2: Primary Model and Self Correcting Network Training")
     logger.info(f"Stage 2 training dataset size: {len(train_loaders['f_loader'])*config.training['batch_size']}")
     for epoch in range(starting_epoch, config.training['stage2_num_epochs']+1):
+        models_saved = False
         logger.info(f"Epoch: {epoch}/{config.training['stage2_num_epochs']}")
         
         if train_samplers['f_sampler']:
@@ -152,7 +154,7 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
         prim_lrs.append(prim_lr)
         corr_lrs.append(corr_lr)
         
-        if val_metrics['correcting_mIoU'] > 0.6 and (epoch % 30 == 0 or round(val_metrics['correcting_mIoU'], 2) > round(best_miou, 2)):
+        if val_metrics['correcting_mIoU'] > 0.8 and (epoch % 30 == 0 or round(val_metrics['correcting_mIoU'], 2) > round(corr_best_miou, 2)):
             save_checkpoint(
                 epoch= epoch, 
                 model= models["primary"],
@@ -180,10 +182,42 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 save_dir= save_dir,
                 model_name= "correcting"
             )
+            models_saved = True
             if epoch % 30 == 0:
                 ...
             else:
-                best_miou = val_metrics['correcting_mIoU']
+                corr_best_miou = val_metrics['correcting_mIoU']
+
+            if models_saved != True and val_metrics['primary_mIoU'] > 0.6 and round(val_metrics['primary_mIoU'], 2) > round(prim_best_miou, 2):
+                save_checkpoint(
+                    epoch= epoch, 
+                    model= models["primary"],
+                    optimizer= optimizers['primary'], 
+                    scheduler= schedulers['primary'],
+                    cur_lr= prim_lr, 
+                    val_acc= val_metrics['primary_acc_per_class'], 
+                    config= config, 
+                    train_transform= train_transform, 
+                    val_transform= val_transform, 
+                    save_dir= save_dir,
+                    model_name= "primary"
+                )
+
+                save_checkpoint(
+                    epoch= epoch, 
+                    model= models["correcting"],
+                    optimizer= optimizers['correcting'], 
+                    scheduler= schedulers['correcting'],
+                    cur_lr= prim_lr, 
+                    val_acc= val_metrics['correcting_acc_per_class'], 
+                    config= config, 
+                    train_transform= train_transform, 
+                    val_transform= val_transform, 
+                    save_dir= save_dir,
+                    model_name= "correcting"
+                )
+
+                prim_best_miou = val_metrics['primary_mIoU']
         
     logger.info(f"Second stage training completed successfully")
 
