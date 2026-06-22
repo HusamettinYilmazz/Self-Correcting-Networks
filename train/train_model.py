@@ -644,6 +644,7 @@ def train(config: Config, checkpoint_path=None):
 
     logger = Logger(save_dir)
     logger.info(f"Starting the experiment: {config.experiment['name']} {config.experiment['version']}")
+    logger.info(f"Info about this experiement: {config.experiment['info']}")
     logger.info(f"Using {torch.cuda.device_count()} GPUs")
     logger.info(f"Using device: {device}")
     logger.info(f"Fully Supervised Training dataset size: {len(fully_sup_train_dataset)}")

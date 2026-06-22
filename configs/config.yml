@@ -3,6 +3,7 @@ experiment:
   name: "stage3"
   version: "9.0"
   seed: 31
+  info: "information about the experiement"
 
 data:
   dataset_name: "VOC-2012"
