@@ -188,36 +188,36 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
             else:
                 corr_best_miou = val_metrics['correcting_mIoU']
 
-            if models_saved != True and val_metrics['primary_mIoU'] > 0.6 and round(val_metrics['primary_mIoU'], 2) > round(prim_best_miou, 2):
-                save_checkpoint(
-                    epoch= epoch, 
-                    model= models["primary"],
-                    optimizer= optimizers['primary'], 
-                    scheduler= schedulers['primary'],
-                    cur_lr= prim_lr, 
-                    val_acc= val_metrics['primary_acc_per_class'], 
-                    config= config, 
-                    train_transform= train_transform, 
-                    val_transform= val_transform, 
-                    save_dir= save_dir,
-                    model_name= "primary"
-                )
+        if models_saved != True and val_metrics['primary_mIoU'] > 0.6 and round(val_metrics['primary_mIoU'], 2) > round(prim_best_miou, 2):
+            save_checkpoint(
+                epoch= epoch, 
+                model= models["primary"],
+                optimizer= optimizers['primary'], 
+                scheduler= schedulers['primary'],
+                cur_lr= prim_lr, 
+                val_acc= val_metrics['primary_acc_per_class'], 
+                config= config, 
+                train_transform= train_transform, 
+                val_transform= val_transform, 
+                save_dir= save_dir,
+                model_name= "primary"
+            )
 
-                save_checkpoint(
-                    epoch= epoch, 
-                    model= models["correcting"],
-                    optimizer= optimizers['correcting'], 
-                    scheduler= schedulers['correcting'],
-                    cur_lr= prim_lr, 
-                    val_acc= val_metrics['correcting_acc_per_class'], 
-                    config= config, 
-                    train_transform= train_transform, 
-                    val_transform= val_transform, 
-                    save_dir= save_dir,
-                    model_name= "correcting"
-                )
+            save_checkpoint(
+                epoch= epoch, 
+                model= models["correcting"],
+                optimizer= optimizers['correcting'], 
+                scheduler= schedulers['correcting'],
+                cur_lr= prim_lr, 
+                val_acc= val_metrics['correcting_acc_per_class'], 
+                config= config, 
+                train_transform= train_transform, 
+                val_transform= val_transform, 
+                save_dir= save_dir,
+                model_name= "correcting"
+            )
 
-                prim_best_miou = val_metrics['primary_mIoU']
+            prim_best_miou = val_metrics['primary_mIoU']
         
     logger.info(f"Second stage training completed successfully")
 
