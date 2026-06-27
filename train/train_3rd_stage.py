@@ -52,11 +52,11 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
             correcting_logits = correcting_logits.detach()
 
         primary_ce_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
-        primary_dice_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
+        primary_dice_loss = loss_funcs["dice_loss"](f_primary_logits, f_masks)
         primary_loss = primary_ce_loss + primary_dice_loss
         unsup_ce_loss = unsupervised_loss(w_primary_logits, correcting_logits)
-        unsup_dice_loss = soft_dice_unsup(w_primary_logits, correcting_logits)
-        unsup_loss = unsup_ce_loss + unsup_dice_loss
+        # unsup_dice_loss = soft_dice_unsup(w_primary_logits, correcting_logits)
+        unsup_loss = unsup_ce_loss # + unsup_dice_loss
         # lambda_u = compute_lambda(epoch)
 
         loss = primary_loss + unsup_loss
