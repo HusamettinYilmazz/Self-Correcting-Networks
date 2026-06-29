@@ -47,7 +47,7 @@ training:
   continue_traning: False
   optimizer: "SGD"
   sup_batch_size: 1
-  unsup__batch_size: 4
+  unsup_batch_size: 4
   val_batch_size: 16
   grad_acc_steps: 1
   stage1_num_epochs: 650
