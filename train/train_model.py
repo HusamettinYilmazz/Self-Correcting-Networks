@@ -778,20 +778,3 @@ def train(config: Config, checkpoint_path=None):
 if __name__ == "__main__":
     config = load_config(os.path.join(ROOT, "configs/config.yml"))
     train(config)
-
-"""
-
-DONE:
-    1. Build the 3 models
-    2. Initilize 2 optimizers
-    3. Be sure about input consistency of (data_loaders, models, optimizers) across the 3 stages
-    4. Before you build f_training_loader split f to f1 and f2 and 
-        build a data_loader instance for each
-    5. Build 3 function: one for each stage training loop
-    6. optimizer, schedular etc parsing to the above 3 functions
-    7. Write configuration yaml file in configs/
-
-what to do next:
-
-    8. Run on Kaggle
-"""
