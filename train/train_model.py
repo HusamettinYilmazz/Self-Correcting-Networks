@@ -109,7 +109,7 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
     corr_best_miou = 0.0
     prim_best_miou = 0.0
     logger.info("Stage 2: Primary Model and Self Correcting Network Training")
-    logger.info(f"Stage 2 training dataset size: {len(train_loaders['f_loader'])*config.training['batch_size']}")
+    logger.info(f"Stage 2 training dataset size: {len(train_loaders['f_loader'].dataset)}")
     for epoch in range(starting_epoch, config.training['stage2_num_epochs']+1):
         models_saved = False
         logger.info(f"Epoch: {epoch}/{config.training['stage2_num_epochs']}")
@@ -231,7 +231,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
     lr = []
     best_miou = 0.0
     logger.info("Stage 3: Primary Model Training")
-    logger.info(f"Stage 3 training dataset size: {(len(train_loaders['f_loader'])+len(train_loaders['w_loader']))*config.training['batch_size']}")
+    logger.info(f"Stage 3 training dataset size: {len(train_loaders['f_loader'].dataset)+len(train_loaders['w_loader'].dataset)}")
     for epoch in range(starting_epoch, config.training['stage3_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage3_num_epochs']}")
         
@@ -375,7 +375,7 @@ def train(config: Config, checkpoint_path=None):
     train_loaders = {
         "f_loader": DataLoader(
             dataset=fully_sup_train_dataset, 
-            batch_size=config.training['batch_size'],
+            batch_size=config.training['sup_batch_size'],
             sampler=train_samplers['f_sampler'],
             shuffle=(train_samplers['f_sampler'] is None), 
             pin_memory= True,
@@ -384,7 +384,7 @@ def train(config: Config, checkpoint_path=None):
 
         "w_loader": DataLoader(
             dataset=weak_train_dataset, 
-            batch_size=config.training['batch_size'],
+            batch_size=config.training['unsup_batch_size'],
             sampler=train_samplers['w_sampler'],
             shuffle=(train_samplers['w_sampler'] is None), 
             pin_memory= True,
@@ -393,7 +393,7 @@ def train(config: Config, checkpoint_path=None):
 
         "f1_loader": DataLoader(
             dataset=f1_dataset, 
-            batch_size=config.training['batch_size'],
+            batch_size=config.training['sup_batch_size'],
             sampler=train_samplers['f1_sampler'],
             shuffle=(train_samplers['f1_sampler'] is None), 
             pin_memory= True,
@@ -402,7 +402,7 @@ def train(config: Config, checkpoint_path=None):
 
         "f2_loader": DataLoader(
             dataset=f2_dataset, 
-            batch_size=config.training['batch_size'],
+            batch_size=config.training['sup_batch_size'],
             sampler=train_samplers['f2_sampler'],
             shuffle=(train_samplers['f2_sampler'] is None), 
             pin_memory= True,
