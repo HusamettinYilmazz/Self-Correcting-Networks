@@ -43,10 +43,11 @@ model:
     - tvmonitor
 
 training:
-  training_stage: 1
+  training_stage: 3
   continue_traning: False
   optimizer: "SGD"
-  batch_size: 4
+  sup_batch_size: 1
+  unsup__batch_size: 4
   val_batch_size: 16
   grad_acc_steps: 1
   stage1_num_epochs: 650
