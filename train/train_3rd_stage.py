@@ -55,9 +55,9 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
         primary_dice_loss = loss_funcs["dice_loss"](f_primary_logits, f_masks)
         primary_loss = primary_ce_loss + primary_dice_loss
         unsup_ce_loss = unsupervised_loss(w_primary_logits, correcting_logits)
-        correcting_masks = torch.argmax(correcting_logits, dim=1).long()
-        unsup_dice_loss = loss_funcs["dice_loss"](w_primary_logits, correcting_masks)
-        unsup_loss = unsup_ce_loss + unsup_dice_loss
+        # correcting_masks = torch.argmax(correcting_logits, dim=1).long()
+        # unsup_dice_loss = loss_funcs["dice_loss"](w_primary_logits, correcting_masks)
+        unsup_loss = unsup_ce_loss #+ unsup_dice_loss
         # lambda_u = compute_lambda(epoch)
 
         loss = primary_loss + unsup_loss
