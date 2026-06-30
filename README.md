@@ -14,14 +14,14 @@
 1. [Stage 1: Ancillary Model Training](#stage-1-ancillary-model-training)
     - [Ancillary Model Architecture](#ancillary-model-architecture)
     - [Ancillary Model Loss Function](#ancillary-model-loss-function)
-    - [Ancillary Model Hyperparameters](#ancillary-model-hyperparameteres)
+    - [Ancillary Model Hyperparameters](#ancillary-model-hyperparameters)
     - [Ancillary Model Training Setup](#ancillary-model-training-setup)
     - [Ancillary Model Training Dataset](#ancillary-model-training-dataset)
     - [Ancillary Model mIoU](#ancillary-model-miou)
-2. [Stage 2 Correcting Model Training](#stage-2-correcting-model-training)
-    - [Correcting Network Architecture](#correcting-network-model-architecture)
+2. [Stage 2 Correcting Network Training](#stage-2-correcting-network-training)
+    - [Correcting Network Architecture](#correcting-network-architecture)
     - [Correcting Network Loss Function](#correcting-network-loss-function)
-    - [Correcting Network Hyperparameters](#correcting-network-hyperparameteres)
+    - [Correcting Network Hyperparameters](#correcting-network-hyperparameters)
     - [Correcting Network Training Setup](#correcting-network-training-setup)
     - [Correcting Network Training Dataset](#correcting-network-training-dataset)
 
@@ -91,7 +91,7 @@ I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from mult
 4. Something I couldn't figure out :)
 
 
-## Stage 2 Correcting Model Training
+## Stage 2 Correcting Network Training
 
 <div align="center">
   <img src="assets/readme_images/correcting_model_arch.png" alt="Background Image" width="95%" />
