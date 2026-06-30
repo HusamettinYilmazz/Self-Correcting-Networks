@@ -17,6 +17,7 @@
     - [Hyperparameters](#hyperparameteres)
     - [Training Setup](#training-setup)
     - [Training Dataset](#training-dataset)
+    - [Ancillary Model mIoU](#ancillary_miou)
 2. [Stage 2](#stage-2)
 
 
@@ -68,13 +69,18 @@ L = -log P<sub>anc</sub>(y | x, b)
 |Optimizer| SGD |
 |Gradient Accumulation| 1 |
 |Stage1 Epochs| 184 |
-|Stage2 Epochs| 8 |
-|Stage3 Epochs| -- |
 |weight_decay| 4e-5 |
 
 ### Training Setup
 The paper authours used <strong>4 GPUs, each with a batch of 4 images</strong>.
-I trained the model on Kaggle free tier <strong>2 GPU T4 each with a batch of 4 images, I used gradient accumulation = 2 to match authour's setup.</strong> kaggle doesn't allow continous training more than 12 hours. so I trained multible iterations on total it took around 48 hours.
+I trained the model on Kaggle free tier <strong>2 GPU T4 each with a batch of 4 images.</strong> kaggle doesn't allow continous training more than 12 hours. so I trained multible iterations on total it took around 48 hours.
 
 ### Training Dataset
 Half of the fully supervised training dataset is used in this stage to prevent data leakage in the next stage where the self-correcting network is using the ancillary model outputs.
+
+### Ancillary Model mIoU
+I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from multiple reasons
+1. My total batch size is 8 when paper use batch size of 16, which results in different values for BatchNorm layers.
+2. The output stride value of backbone (Xception65) due to GPU limitations I used 16 If they used 8 this can make a little bit difference in mIoU.
+3. The split of fully supervised dataset: The split can contribute to the mIoU if it is better on matching validation dataset distribution.
+4. Something I couldn't figure out :)
