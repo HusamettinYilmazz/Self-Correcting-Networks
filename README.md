@@ -107,3 +107,29 @@ self-correction model learns refining the input label distributions. The subnetw
 2. Linear self-correction: The primary model and ancillary model outputs project to 1d then feed to FNN.
 
 3. Convolutional self-correcting: The main contribution of the paper, this network is concatinating both the primary and ancillary logits then passed to 2 3X3 conv layers to produce refined soft label.
+
+### Loss Function
+
+The convolutional self-correcting network learns a refined
+label distribution from the logits of the ancillary model
+and the primary segmentation model
+
+<p align="center">
+q<sub>conv</sub>(y | l<sub>prim</sub>, l<sub>anc</sub>; λ)
+</p>
+
+where
+
+<p align="center">
+l<sub>prim</sub> = logits from P<sub>prim</sub>(y | x)
+</p>
+
+<p align="center">
+l<sub>anc</sub> = logits from P<sub>anc</sub>(y | x,b)
+</p>
+
+The loss function is standard <strong>Cross Entropy</strong>
+
+<p align="center">
+L = -log q<sub>conv</sub>(y | l, l<sub>anc</sub>; λ)
+</p>
