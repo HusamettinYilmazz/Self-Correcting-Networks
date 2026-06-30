@@ -97,3 +97,13 @@ I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from mult
 <div align="center">
   <img src="assets/readme_images/correcting_model_arch.png" alt="Background Image" width="95%" />
 </div>
+Stage 2 trains the correcting network to learn joint representations from ancillary model & primary model logits.
+
+### Model Architecture
+self-correction model learns refining the input label distributions. The subnetwork receives logits from the primary and ancillary models, then concatenates and feeds the output to the network.
+
+1. No self-correction: this is just a baseline to compare the primary model without any refining
+
+2. Linear self-correction: The primary model and ancillary model outputs project to 1d then feed to FNN.
+
+3. Convolutional self-correcting: The main contribution of the paper, this network is concatinating both the primary and ancillary logits then passed to 2 3X3 conv layers to produce refined soft label.
