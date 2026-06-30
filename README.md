@@ -133,3 +133,15 @@ The loss function is standard <strong>Cross Entropy</strong>
 <p align="center">
 L = -log q<sub>conv</sub>(y | l, l<sub>anc</sub>; λ)
 </p>
+
+### Hyperparameters
+|Parameter|Value|
+|---|---|
+|Learning rate| 5e-4 |
+|Batch size| 4 each GPU |
+|# GPUs| 2 |
+|Scheduler|custom: step based scheduler|
+|Optimizer| SGD |
+|Gradient Accumulation| 1 |
+|Stage2 Epochs| 8 |
+|weight_decay| 4e-5 |
