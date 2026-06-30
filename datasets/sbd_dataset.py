@@ -35,8 +35,9 @@ class SBDDataset(Dataset):
         H, W = mask.shape
         onehot = np.zeros((num_classes, H, W), dtype=np.uint8)
 
+        valid = mask != 255
         for c in range(num_classes):
-            onehot[c] = (mask == c)
+            onehot[c] = (mask == c) & valid
 
         return onehot
 
