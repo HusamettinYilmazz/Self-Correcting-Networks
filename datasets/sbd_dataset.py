@@ -52,19 +52,20 @@ class SBDDataset(Dataset):
 
         mask = self._load_mask(img_id)  # (H, W)
 
-        # weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
+        weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
 
         if self.transform:
             transformed = self.transform(
                 image=image,
-                mask=mask
+                masks=[weak_mask[c] for c in range(weak_mask.shape[0])]
             )
 
             image = transformed["image"]
-            mask = transformed["mask"]
-            weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
-            # weak_mask = np.stack(transformed["masks"], axis=0)
+            # mask = transformed["mask"]
+            # weak_mask = self._mask_to_onehot(mask)  # (21, H, W)  ## If not done before the transform
+            weak_mask = np.stack(transformed["masks"], axis=0)
 
+        # weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
         weak_mask = torch.tensor(weak_mask, dtype=torch.float32)
 
         return image, weak_mask
