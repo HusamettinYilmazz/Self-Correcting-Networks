@@ -143,3 +143,9 @@ L = -log q<sub>conv</sub>(y | l, l<sub>anc</sub>; λ)
 |Gradient Accumulation| 1 |
 |Stage2 Epochs| 8 |
 |weight_decay| 4e-5 |
+
+### Training Setup
+The network is trained on Kaggle free tier <strong>2 GPU T4 each with a batch of 4 images.</strong>.
+
+### Training Dataset
+Fully supervised training dataset is used in this stage. Weak dataset is not used.
