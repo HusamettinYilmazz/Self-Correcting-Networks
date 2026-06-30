@@ -61,7 +61,7 @@ class SBDDataset(Dataset):
             )
 
             image = transformed["image"]
-            mask = self.transform["mask"]
+            mask = transformed["mask"]
             weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
             # weak_mask = np.stack(transformed["masks"], axis=0)
 
