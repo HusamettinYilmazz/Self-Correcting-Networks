@@ -12,19 +12,18 @@
 
 ## Table of Content
 1. [Stage 1: Ancillary Model Training](#stage-1-ancillary-model-training)
-    - [Model Architecture](#model-architecture)
-    - [Loss Function](#loss-function)
-    - [Hyperparameters](#hyperparameteres)
-    - [Training Setup](#training-setup)
-    - [Training Dataset](#training-dataset)
+    - [Ancillary Model Architecture](#ancillary-model-architecture)
+    - [Ancillary Model Loss Function](#ancillary-model-loss-function)
+    - [Ancillary Model Hyperparameters](#ancillary-model-hyperparameteres)
+    - [Ancillary Model Training Setup](#ancillary-model-training-setup)
+    - [Ancillary Model Training Dataset](#ancillary-model-training-dataset)
     - [Ancillary Model mIoU](#ancillary-model-miou)
 2. [Stage 2 Correcting Model Training](#stage-2-correcting-model-training)
-    - [Model Architecture](#model-architecture)
-    - [Loss Function](#loss-function)
-    - [Hyperparameters](#hyperparameteres)
-    - [Training Setup](#training-setup)
-    - [Training Dataset](#training-dataset)
-    - [Ancillary Model mIoU](#ancillary-model-miou)
+    - [Correcting Network Architecture](#correcting-network-model-architecture)
+    - [Correcting Network Loss Function](#correcting-network-loss-function)
+    - [Correcting Network Hyperparameters](#correcting-network-hyperparameteres)
+    - [Correcting Network Training Setup](#correcting-network-training-setup)
+    - [Correcting Network Training Dataset](#correcting-network-training-dataset)
 
 
 <strong>The approach in the paper divides training into three stages: the first trains the ancillary model, the second trains the self-correcting network, and the third focuses on the primary model.</strong>
@@ -97,10 +96,10 @@ I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from mult
 <div align="center">
   <img src="assets/readme_images/correcting_model_arch.png" alt="Background Image" width="95%" />
 </div>
-Stage 2 mainly trains the correcting network to learn joint representations from ancillary model & primary model logits - the primary model is trained too in this stage.
+Stage 2 mainly trains the correcting network to learn joint representations from ancillary model & primary model logits - the primary model is trained also in this stage.
 
-### Model Architecture
-self-correction model learns refining the input label distributions. The subnetwork receives logits from the primary and ancillary models, then concatenates and feeds the output to the network.
+### Correcting Network Architecture
+self-correction network learns refining the input label distributions. The subnetwork receives logits from the primary and ancillary models, then concatenates and feeds the output to the network.
 
 1. No self-correction: this is just a baseline to compare the primary model without any refining
 
@@ -108,7 +107,7 @@ self-correction model learns refining the input label distributions. The subnetw
 
 3. Convolutional self-correcting: The main contribution of the paper, this network is concatinating both the primary and ancillary logits then passed to 2 3X3 conv layers to produce refined soft label.
 
-### Loss Function
+### Correcting Network Loss Function
 
 The convolutional self-correcting network learns a refined label distribution from the logits of the ancillary model and the primary segmentation model
 
@@ -132,7 +131,7 @@ The loss function is standard <strong>Cross Entropy</strong>
 L = -log q<sub>conv</sub>(y | l, l<sub>anc</sub>; λ)
 </p>
 
-### Hyperparameters
+### Correcting Network Hyperparameters
 |Parameter|Value|
 |---|---|
 |Learning rate| 5e-4 |
@@ -144,8 +143,8 @@ L = -log q<sub>conv</sub>(y | l, l<sub>anc</sub>; λ)
 |Stage2 Epochs| 8 |
 |weight_decay| 4e-5 |
 
-### Training Setup
+### Correcting Network Training Setup
 The network is trained on Kaggle free tier <strong>2 GPU T4 each with a batch of 4 images.</strong>.
 
-### Training Dataset
+### Correcting Network Training Dataset
 Fully supervised training dataset is used in this stage. Weak dataset is not used.
