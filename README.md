@@ -61,11 +61,13 @@ L = -log P<sub>anc</sub>(y | x, b)
 ### Hyperparameters
 |Parameter|Value|
 |---|---|
-|Learning rate|7e-3|
-|Scheduler|custom: batch based scheduler|
-|Optimizer|AdamW|
-|Gradient Accumulation|2 batches|
-|Epochs|650|
+|Learning rate| 7e-3 |
+|Scheduler|custom: step based scheduler|
+|Optimizer| SGD |
+|Gradient Accumulation| 1 |
+|Stage1 Epochs| 184 |
+|Stage2 Epochs| 8 |
+|Stage3 Epochs| -- |
 
 ### Training Setup
 The paper authours used <strong>4 GPUs, each with a batch of 4 images</strong>.
