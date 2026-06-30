@@ -39,9 +39,13 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
 
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
         w_imgs, w_masks = w_imgs.to(device), w_masks.to(device)
+        imgs = torch.cat([f_imgs, w_imgs], dim=0)
 
-        f_primary_logits = models["primary"](f_imgs)
-        w_primary_logits = models["primary"](w_imgs)
+        logits = models["primary"](imgs)
+        # f_primary_logits = models["primary"](f_imgs)
+        # w_primary_logits = models["primary"](w_imgs)
+        f_primary_logits = logits[:f_imgs.size(0)]
+        w_primary_logits = logits[f_imgs.size(0):]
 
         with torch.no_grad():
             ancillary_outputs = models["ancillary"](w_imgs, w_masks)
