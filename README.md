@@ -97,7 +97,7 @@ I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from mult
 <div align="center">
   <img src="assets/readme_images/correcting_model_arch.png" alt="Background Image" width="95%" />
 </div>
-Stage 2 trains the correcting network to learn joint representations from ancillary model & primary model logits.
+Stage 2 mainly trains the correcting network to learn joint representations from ancillary model & primary model logits - the primary model is trained too in this stage.
 
 ### Model Architecture
 self-correction model learns refining the input label distributions. The subnetwork receives logits from the primary and ancillary models, then concatenates and feeds the output to the network.
@@ -110,9 +110,7 @@ self-correction model learns refining the input label distributions. The subnetw
 
 ### Loss Function
 
-The convolutional self-correcting network learns a refined
-label distribution from the logits of the ancillary model
-and the primary segmentation model
+The convolutional self-correcting network learns a refined label distribution from the logits of the ancillary model and the primary segmentation model
 
 <p align="center">
 q<sub>conv</sub>(y | l<sub>prim</sub>, l<sub>anc</sub>; λ)
