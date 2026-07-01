@@ -344,8 +344,8 @@ def train(config: Config, checkpoint_path=None):
     f1_dataset, f2_dataset = random_split(
         fully_sup_train_dataset,
         [
-            int(len(fully_sup_train_dataset) * 0.55),
-            len(fully_sup_train_dataset) - int(len(fully_sup_train_dataset) * 0.55)
+            int(len(fully_sup_train_dataset) * 0.6),
+            len(fully_sup_train_dataset) - int(len(fully_sup_train_dataset) * 0.6)
         ],
         generator=generator
     )
