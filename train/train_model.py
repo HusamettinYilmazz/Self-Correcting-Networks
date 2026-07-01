@@ -90,9 +90,7 @@ def stage1_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 save_dir = save_dir,
                 model_name= "ancillary"
             )
-            if epoch % 30 == 0:
-                ...
-            else:
+            if best_miou < val_metrics['mIoU']:
                 best_miou = val_metrics['mIoU']
         
     logger.info(f"First stage training completed successfully")
@@ -183,9 +181,7 @@ def stage2_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 model_name= "correcting"
             )
             models_saved = True
-            if epoch % 30 == 0:
-                ...
-            else:
+            if corr_best_miou < val_metrics['correcting_mIoU']:
                 corr_best_miou = val_metrics['correcting_mIoU']
 
         if models_saved != True and val_metrics['primary_mIoU'] > 0.6 and round(val_metrics['primary_mIoU'], 2) > round(prim_best_miou, 2):
@@ -284,9 +280,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 save_dir= save_dir,
                 model_name= "primary"
             )
-            if epoch % 30 == 0:
-                ...
-            else:
+            if best_miou < val_metrics['primary_mIoU']:
                 best_miou = val_metrics['primary_mIoU']
         
     logger.info(f"Third stage training completed successfully")
