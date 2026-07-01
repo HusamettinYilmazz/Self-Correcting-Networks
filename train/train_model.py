@@ -647,9 +647,9 @@ def train(config: Config, checkpoint_path=None):
     logger.info(f"Info about this experiement: {config.experiment['info']}")
     logger.info(f"Using {torch.cuda.device_count()} GPUs")
     logger.info(f"Using device: {device}")
-    logger.info(f"Fully Supervised Training dataset size: {len(fully_sup_train_dataset)}")
-    logger.info(f"Weak Training dataset size: {len(weak_train_dataset)}")
-    logger.info(f"Validation dataset size: {len(val_dataset)}")
+    logger.info(f"Fully Supervised Training dataset size: {len(train_loaders['f_loader'].dataset)}")
+    logger.info(f"Weak Training dataset size: {len(train_loaders['w_loader'].dataset)}")
+    logger.info(f"Validation dataset size: {len(val_loader.dataset)}")
 
     lrs = []
     logger.info(f"Starting training from epoch: {starting_epoch}")
