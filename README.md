@@ -84,8 +84,8 @@ I trained the model on Kaggle free tier <strong>2 GPU T4 each with a batch of 4 
 Half of the fully supervised training dataset is used in this stage to prevent data leakage in the next stage where the self-correcting network is using the ancillary model outputs.
 
 ### Ancillary Model mIoU
-I reached ~82.8 mIoU while paper reports ~85.5 the difference may come from multiple reasons
-1. My total batch size is 8 when paper use batch size of 16, which results in different values for BatchNorm layers.
+I reached ~84.2 mIoU while paper reports ~85.5 the difference may come from multiple reasons
+1. My total batch size is 8 when paper uses batch size of 16, which results in different values for BatchNorm layers.
 2. The output stride value of backbone (Xception65) due to GPU limitations I used 16 If they used 8 this can make a little bit difference in mIoU.
 3. The split of fully supervised dataset: The split can contribute to the mIoU if it is better on matching validation dataset distribution.
 4. Something I couldn't figure out :)
