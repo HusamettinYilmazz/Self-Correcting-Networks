@@ -67,8 +67,8 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
                 model=models["ancillary"], 
                 imgs=imgs, 
                 bboxes=bboxes, 
-                scales=(0.75, 1, 1,25),
-                use_flip=True
+                scales=(1, ),
+                use_flip=False
                 )
 
             ce_loss = loss_funcs["ce_loss"](outputs, masks)
