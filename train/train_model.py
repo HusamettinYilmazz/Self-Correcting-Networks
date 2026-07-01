@@ -358,6 +358,7 @@ def train(config: Config, checkpoint_path=None):
     val_dataset = VOCDataset(data_path= train_val_dataset_path,
                                data_type="val",
                                is_sup= True,
+                               split_ratio=1.0,
                                transform=val_transform)
     train_samplers = {
         "f_sampler": DistributedSampler(fully_sup_train_dataset) if dist.is_initialized() else None,

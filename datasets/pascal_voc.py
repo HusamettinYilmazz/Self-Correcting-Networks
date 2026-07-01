@@ -24,7 +24,7 @@ class_map = {
 }
 
 class VOCDataset(Dataset):
-    def __init__(self, data_path, data_type="train", is_sup=True, split_ratio=0.25, transform=None):
+    def __init__(self, data_path, data_type="train", is_sup=True, split_ratio=1.0, transform=None):
         super().__init__()
         
         self.data_path = data_path
