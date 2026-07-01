@@ -54,7 +54,7 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
     total_ce_loss = 0.0
     total_dice_loss = 0.0
     total_cm = None
-    preds_list, targets_list = [], []
+    # preds_list, targets_list = [], []
 
     models["ancillary"].eval()
     with torch.no_grad():
@@ -87,18 +87,18 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
 
             total_cm = cm if total_cm is None else total_cm + cm
             # predictions
-            pred_classes = torch.argmax(outputs, dim=1)
+            # pred_classes = torch.argmax(outputs, dim=1)
 
-            preds_list.append(pred_classes.cpu())
-            targets_list.append(masks.cpu())
+            # preds_list.append(pred_classes.cpu())
+            # targets_list.append(masks.cpu())
 
     iou = compute_iou_per_class(total_cm)
     acc = compute_per_class_accuracy(total_cm)
 
-    preds = torch.cat(preds_list, dim=0)
-    targets = torch.cat(targets_list, dim=0)
-    b_f1 = boundary_f1(preds, targets)
-    imbalance_ind = imbalance_indicator(preds, targets, 21)  
+    # preds = torch.cat(preds_list, dim=0)
+    # targets = torch.cat(targets_list, dim=0)
+    # b_f1 = boundary_f1(preds, targets)
+    # imbalance_ind = imbalance_indicator(preds, targets, 21)  
 
     metrics = {
         "avg_ce_loss": total_ce_loss / len(data_loader),
@@ -108,8 +108,8 @@ def validate_ancillary_model(epoch, data_loader, device, models, loss_funcs, cla
         "iou_per_class": iou,
         "mIoU":     iou[1:].mean().item(),
         "avg_acc":  acc[1:].mean().item(),
-        "Boundry F1": b_f1.item(),
-        "Class Imbalancing Indicator": imbalance_ind,
+        # "Boundry F1": b_f1.item(),
+        # "Class Imbalancing Indicator": imbalance_ind,
     }
 
     if save_dir is not None:
