@@ -340,12 +340,12 @@ def train(config: Config, checkpoint_path=None):
                                     is_sup= True,
                                     split_ratio=1.0,
                                     transform=train_transform)
-    generator = torch.Generator().manual_seed(42)
+    generator = torch.Generator().manual_seed(37)   ## 42 is used for all other attemps
     f1_dataset, f2_dataset = random_split(
         fully_sup_train_dataset,
         [
-            int(len(fully_sup_train_dataset) * 0.6),
-            len(fully_sup_train_dataset) - int(len(fully_sup_train_dataset) * 0.6)
+            int(len(fully_sup_train_dataset) * 0.55),
+            len(fully_sup_train_dataset) - int(len(fully_sup_train_dataset) * 0.55)
         ],
         generator=generator
     )
