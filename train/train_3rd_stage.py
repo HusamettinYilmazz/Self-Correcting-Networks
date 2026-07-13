@@ -38,7 +38,7 @@ def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
             f_imgs, _, f_masks = next(f_loader_iter)
 
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
-        w_imgs, w_masks = w_imgs.to(device), w_masks.to(device)
+        w_imgs, w_masks = w_imgs.to(device), w_masks.to(device).long()
         imgs = torch.cat([f_imgs, w_imgs], dim=0)
 
         logits = models["primary"](imgs)
