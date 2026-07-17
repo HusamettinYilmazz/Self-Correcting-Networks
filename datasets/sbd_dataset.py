@@ -41,6 +41,21 @@ class SBDDataset(Dataset):
 
         return onehot
 
+    def _mask_to_bbox_onehot(self, mask, num_classes=21):
+        H, W = mask.shape
+        bbox_onehot = np.zeros((num_classes, H, W), dtype=np.uint8)
+
+        for c in range(1, num_classes):
+            positions = np.where(mask == c)
+            if positions[0].size == 0:
+                continue
+
+            ymin, ymax = positions[0].min(), positions[0].max() + 1
+            xmin, xmax = positions[1].min(), positions[1].max() + 1
+            bbox_onehot[c, ymin:ymax, xmin:xmax] = 1
+
+        return bbox_onehot
+
     def __len__(self):
         return len(self.ids)
 
@@ -64,7 +79,7 @@ class SBDDataset(Dataset):
             mask = transformed["mask"]
             # weak_mask = np.stack(transformed["masks"], axis=0)
 
-        weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
+        weak_mask = self._mask_to_bbox_onehot(mask)  # (21, H, W)
         weak_mask = torch.tensor(weak_mask, dtype=torch.float32)
 
         return image, weak_mask
