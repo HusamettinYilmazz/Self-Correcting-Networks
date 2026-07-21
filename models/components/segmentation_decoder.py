@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .aspp import SeparableConv2d
 
 
 class DeepLabV3PlusDecoder(nn.Module):
@@ -15,15 +16,10 @@ class DeepLabV3PlusDecoder(nn.Module):
             nn.ReLU(inplace=True),
         )
 
-        # fusion head
+        # fusion head: use separable convs (includes BN + ReLU inside SeparableConv2d)
         self.refine = nn.Sequential(
-            nn.Conv2d(256 + 48, 256, 3, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(256, 256, 3, padding=1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
+            SeparableConv2d(256 + 48, 256, kernel_size=3, padding=1, bias=False),
+            SeparableConv2d(256, 256, kernel_size=3, padding=1, bias=False),
         )
 
         self.classifier = nn.Conv2d(256, num_classes, 1)
