@@ -426,6 +426,9 @@ def train(config: Config, checkpoint_path=None):
         )
     }
 
+    for model in models.values():
+        model.compile()
+
     ## Data parallelisim
     # if config.training['training_stage'] == 1:
     ## All the stages need the ancillary model
