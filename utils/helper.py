@@ -25,7 +25,7 @@ def load_config(config_path="config.yaml"):
 
 def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
                     val_acc, config, train_transform, 
-                    val_transform, save_dir, model_name="model", filename=None):
+                    val_transform, save_dir, model_name="model", filename=None, companions=None):
     
     if dist.is_available() and dist.is_initialized():
         if dist.get_rank() != 0:
@@ -44,14 +44,22 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
             'val_accuracy': val_acc,
             'config': config,
             'train_transform': train_transform,
-            'val_transform': val_transform
+            'val_transform': val_transform,
+            'companions': {
+                name: {
+                    'model_state_dict': extra_model.module.state_dict() if hasattr(extra_model, 'module') else extra_model.state_dict(),
+                    'optimizer_state_dict': extra_optimizer.state_dict(),
+                    'scheduler_state_dict': extra_scheduler.state_dict(),
+                }
+                for name, (extra_model, extra_optimizer, extra_scheduler) in (companions or {}).items()
+            }
 
         }, tmp_path)
     os.replace(tmp_path, checkpoint_path)
 
     print(f"Epoch:{epoch} checkpoint has been saved at:{checkpoint_path}")
 
-def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device, resume=True):
+def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device, resume=True, companions=None):
     if not os.path.isfile(checkpoint_path):
         raise FileNotFoundError(f'Checkpoint must point to a file: {checkpoint_path}')
     checkpoint = torch.load(
@@ -73,12 +81,29 @@ def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device, resume
             scheduler.restore(scheduler_state, completed_epochs=epoch)
         elif scheduler is not None and scheduler_state:
             scheduler.load_state_dict(scheduler_state)
+
+    restored = set()
+    for name, (extra_model, extra_optimizer, extra_scheduler) in (companions or {}).items():
+        saved = checkpoint.get('companions', {}).get(name)
+        if saved is None:
+            continue
+        module = extra_model.module if hasattr(extra_model, 'module') else extra_model
+        module.load_state_dict(saved['model_state_dict'])
+        if resume:
+            extra_optimizer.load_state_dict(saved['optimizer_state_dict'])
+            if isinstance(extra_scheduler, Stage3PolynomialLR):
+                extra_scheduler.restore(saved.get('scheduler_state_dict') or {}, epoch)
+            else:
+                extra_scheduler.load_state_dict(saved['scheduler_state_dict'])
+        restored.add(name)
     
     state = {
         "epoch": epoch, 
         "model": model, 
         "optimizer": optimizer, 
-        "scheduler": scheduler
+        "scheduler": scheduler,
+        "companions_restored": restored,
+        "config": checkpoint.get('config'),
     }
 
     return state

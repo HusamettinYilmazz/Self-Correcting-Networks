@@ -1,11 +1,10 @@
-from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 import torch
 import torch.nn.functional as F
 
 def plot_confusion_matrix(cm, class_names, save_path=None):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+
     cm_normalized = cm.numpy().astype(float) / (cm.numpy().sum(axis=1, keepdims=True) + 1e-10)
     fig, ax = plt.subplots(figsize=(16, 14))
     sns.heatmap(
@@ -37,16 +36,16 @@ def compute_confusion_matrix(y_true, y_preds, class_names, ignore_index=255):
     
     num_classes = len(class_names)
 
-    y_preds = y_preds.cpu().numpy().flatten()
-    y_true  = y_true.cpu().numpy().flatten()
+    y_preds = y_preds.detach().reshape(-1)
+    y_true = y_true.reshape(-1)
 
     valid   = (y_true != ignore_index) & (y_true >= 0) & (y_true < num_classes)
     y_preds = y_preds[valid]
     y_true  = y_true[valid]
 
-    cm = confusion_matrix(y_true, y_preds, labels=list(range(num_classes)))
-
-    return torch.tensor(cm, dtype=torch.long)
+    counts = torch.bincount(y_true.long() * num_classes + y_preds.long(),
+                            minlength=num_classes * num_classes)
+    return counts.reshape(num_classes, num_classes).cpu()
 
 def compute_iou_per_class(cm):
     return (cm.diag() / (cm.sum(dim=1) + cm.sum(dim=0) - cm.diag() + 1e-10)).cpu().numpy()

@@ -1,136 +1,149 @@
 import torch
+import torch.distributed as dist
 
 from utils.eval import compute_confusion_matrix, compute_iou_per_class
-from utils.eval import compute_per_class_accuracy, plot_confusion_matrix
-from utils.eval import unsupervised_loss, soft_dice_unsup
+from utils.eval import compute_per_class_accuracy, plot_confusion_matrix, unsupervised_loss
+from utils.helper import load_checkpoint
 
-def compute_lambda(epoch):  
-    """
-    needs to be revised for both its importance and 
-    the number of epochs = 10 needs to passed as 3rd stage num_epoch.
-    """
-    return min(1.0, epoch/10)
+
+def initialize_stage3(paths, models, optimizers, schedulers, device, resume, mode):
+    """Load stage-2 weights or resume a stage-3 primary/corrector bundle."""
+    if mode == 'self_correction' and not all(paths.get(name) for name in ('primary', 'ancillary')):
+        raise ValueError('Self-correction needs primary and ancillary checkpoint paths.')
+    if resume and not paths.get('primary'):
+        raise ValueError('Resuming stage 3 requires a primary checkpoint path.')
+    state = None
+    companions = ({'correcting': (models['correcting'], optimizers['correcting'], schedulers['correcting'])}
+                  if mode == 'self_correction' else {})
+    if paths.get('primary'):
+        state = load_checkpoint(paths['primary'], models['primary'], optimizers['primary'],
+                                schedulers['primary'], device, resume=resume, companions=companions)
+        saved_config = state['config']
+        saved_training = getattr(saved_config, 'training', {})
+        previous_mode = saved_training.get('stage3_mode')
+        if resume and previous_mode is not None and previous_mode != mode:
+            raise ValueError('Stage 3 mode changed; use continue_traning=False to initialize a new experiment.')
+    if mode == 'self_correction':
+        load_checkpoint(paths['ancillary'], models['ancillary'], optimizers['ancillary'],
+                        schedulers['ancillary'], device, resume=False)
+        if state is None or 'correcting' not in state['companions_restored']:
+            if not paths.get('correcting'):
+                raise ValueError('This checkpoint has no corrector bundle; provide a correcting checkpoint path.')
+            load_checkpoint(paths['correcting'], models['correcting'], optimizers['correcting'],
+                            schedulers['correcting'], device, resume=False)
+            if resume:
+                # Legacy stage 3 froze the corrector. Start its new optimization
+                # at the resumed epoch without importing stage-2 scheduler state.
+                schedulers['correcting'].restore({}, state['epoch'])
+    return state['epoch'] + 1 if resume else 1
+
 
 def train_primary_model_epoch(epoch, data_loaders, device, models, optimizers,
-                              loss_funcs, schedulers, accum_steps, logger):
-    
+                              loss_funcs, schedulers, accum_steps, logger,
+                              mode='self_correction'):
+    if mode not in ('self_correction', 'supervised'):
+        raise ValueError(f'Unknown stage 3 mode: {mode}')
+    if accum_steps < 1 or not len(data_loaders['w_loader']) or not len(data_loaders['f_loader']):
+        raise ValueError('Stage 3 requires nonempty loaders and positive accumulation.')
+    active = ['primary']
+    models['primary'].train()
+    if mode == 'self_correction':
+        active.append('correcting')
+        models['ancillary'].eval()
+        for parameter in models['ancillary'].parameters():
+            parameter.requires_grad_(False)
+        for parameter in models['correcting'].parameters():
+            parameter.requires_grad_(True)
+    for name in active:
+        optimizers[name].zero_grad()
+
     total_loss = 0.0
-    
-    optimizers["primary"].zero_grad()
-    models["primary"].train()
-    correcting_module = models["correcting"].module if hasattr(models["correcting"], "module") else models["correcting"]
-    correcting_module.freeze()
-    models["correcting"].eval()
-    ancillary_module = models["ancillary"].module if hasattr(models["ancillary"], "module") else models["ancillary"]
-    ancillary_module.freeze()
-    models["ancillary"].eval()
-    
-    f_loader_iter = iter(data_loaders["f_loader"])
-    epochs_f_loder = 1
-    for batch_idx, (w_imgs, w_masks) in enumerate(data_loaders["w_loader"]):
+    f_iterator = iter(data_loaders['f_loader'])
+    num_batches = len(data_loaders['w_loader'])
+    for batch_idx, (w_imgs, w_targets) in enumerate(data_loaders['w_loader']):
         try:
-            f_imgs, _, f_masks = next(f_loader_iter)
+            f_imgs, f_boxes, f_masks = next(f_iterator)
         except StopIteration:
-            epochs_f_loder += 1
-            logger.info(f"f_loader epoch:{epochs_f_loder} starting")
-            # Restart the iterator cleanly when it runs out of data
-            f_loader_iter = iter(data_loaders["f_loader"])
-            f_imgs, _, f_masks = next(f_loader_iter)
+            f_iterator = iter(data_loaders['f_loader'])
+            f_imgs, f_boxes, f_masks = next(f_iterator)
 
         f_imgs, f_masks = f_imgs.to(device), f_masks.to(device).long()
-        w_imgs, w_masks = w_imgs.to(device), w_masks.to(device).long()
-        imgs = torch.cat([f_imgs, w_imgs], dim=0)
+        w_imgs, w_targets = w_imgs.to(device), w_targets.to(device)
+        images = torch.cat([f_imgs, w_imgs], dim=0)
+        logits = models['primary'](images)
+        f_logits, w_logits = logits[:f_imgs.size(0)], logits[f_imgs.size(0):]
+        supervised = loss_funcs['ce_loss'](f_logits, f_masks) + loss_funcs['dice_loss'](f_logits, f_masks)
+        correction_loss = logits.new_zeros(())
 
-        logits = models["primary"](imgs)
-        # f_primary_logits = models["primary"](f_imgs)
-        # w_primary_logits = models["primary"](w_imgs)
-        f_primary_logits = logits[:f_imgs.size(0)]
-        w_primary_logits = logits[f_imgs.size(0):]
+        if mode == 'self_correction':
+            if w_targets.ndim != 4 or w_targets.shape[1] != logits.shape[1]:
+                raise ValueError('Self-correction requires bounding-box channels [B, C, H, W].')
+            boxes = torch.cat([f_boxes.to(device).float(), w_targets.float()], dim=0)
+            with torch.no_grad():
+                ancillary = models['ancillary'](images, boxes)
+                models['correcting'].eval()
+                weak_targets = models['correcting'](w_logits.detach(), ancillary[f_imgs.size(0):])
+            weak_loss = unsupervised_loss(w_logits, weak_targets)
 
-        with torch.no_grad():
-            ancillary_outputs = models["ancillary"](w_imgs, w_masks)
-            correcting_logits = models["correcting"](
-                w_primary_logits.detach(), 
-                ancillary_outputs.detach()
-            )
-            correcting_logits = correcting_logits.detach()
+            # The corrector learns from real labels; weak targets stay detached.
+            models['correcting'].train()
+            corrected_f = models['correcting'](f_logits.detach(), ancillary[:f_imgs.size(0)])
+            correction_loss = (loss_funcs['ce_loss'](corrected_f, f_masks)
+                               + loss_funcs['dice_loss'](corrected_f, f_masks))
+        else:
+            w_masks = w_targets.long()
+            weak_loss = (loss_funcs['ce_loss'](w_logits, w_masks)
+                         + loss_funcs['dice_loss'](w_logits, w_masks))
 
-        primary_ce_loss = loss_funcs["ce_loss"](f_primary_logits, f_masks)
-        primary_dice_loss = loss_funcs["dice_loss"](f_primary_logits, f_masks)
-        primary_loss = primary_ce_loss + primary_dice_loss
-        unsup_ce_loss = unsupervised_loss(w_primary_logits, correcting_logits)
-        # correcting_masks = torch.argmax(correcting_logits, dim=1).long()
-        # unsup_dice_loss = loss_funcs["dice_loss"](w_primary_logits, correcting_masks)
-        unsup_loss = unsup_ce_loss #+ unsup_dice_loss
-        # lambda_u = compute_lambda(epoch)
-
-        loss = primary_loss + unsup_loss
-        
+        loss = supervised + weak_loss + correction_loss
         total_loss += loss.item()
-
-        acc_loss = loss / accum_steps
-        acc_loss.backward()
-
-        if (batch_idx+1) % accum_steps == 0 or (batch_idx+1) == len(data_loaders["w_loader"]):
-            optimizers["primary"].step()
-            optimizers["primary"].zero_grad()
-            schedulers["primary"].step()
-
+        group_start = (batch_idx // accum_steps) * accum_steps
+        group_size = min(accum_steps, num_batches - group_start)
+        (loss / group_size).backward()
+        if (batch_idx + 1) % accum_steps == 0 or batch_idx + 1 == num_batches:
+            for name in active:
+                optimizers[name].step()
+                optimizers[name].zero_grad()
+                schedulers[name].step()
 
         if batch_idx % 200 == 0 or batch_idx == 20:
-            logger.info(f"TRAIN PRIMARY MODEL: Epoch:{epoch} at Batch:{batch_idx}/{len(data_loaders['w_loader'])} Primary Loss:{primary_loss.item():.3f} | Unsupervised Loss:{unsup_loss.item():.3f} & Combined Loss:{loss.item():.3f}")
-    
-    logger.info(f"fully supervised dataset trained: {epochs_f_loder} epochs")
-    avg_loss = total_loss/ len(data_loaders["w_loader"])
-    logger.info(f"PRIMARY MODEL Epoch:{epoch} average train Loss:{avg_loss:.3f}")
-    
-    return avg_loss
+            logger.info(
+                f'TRAIN STAGE 3: Epoch:{epoch} Batch:{batch_idx}/{num_batches} '
+                f'Supervised:{supervised.item():.3f} Weak:{weak_loss.item():.3f} '
+                f'Corrector:{correction_loss.item():.3f} Combined:{loss.item():.3f}'
+            )
+    average = total_loss / num_batches
+    logger.info(f'PRIMARY MODEL Epoch:{epoch} average train loss:{average:.3f}')
+    return average
+
 
 def validate_primary_model(epoch, data_loader, device, models, loss_funcs,
-                     class_names, logger, save_dir=None):
-    
-    models["primary"].eval()
-
-    total_loss = 0.0
-    total_cm = None
-
+                           class_names, logger, save_dir=None):
+    models['primary'].eval()
+    total_loss, samples, total_cm = 0.0, 0, None
     with torch.no_grad():
-        for imgs, _, masks in data_loader:
-            imgs = imgs.to(device)
-            masks = masks.to(device).long()
-
-
-            outputs = models["primary"](imgs)
-
-            loss = loss_funcs['ce_loss'](outputs, masks)
-            total_loss += loss.item()
-
-            # preds = outputs.argmax(dim=1)
-
-            cm = compute_confusion_matrix(
-                masks,
-                outputs,
-                class_names,
-                ignore_index=255
-            )
-
+        for images, _, masks in data_loader:
+            images, masks = images.to(device), masks.to(device).long()
+            outputs = models['primary'](images)
+            total_loss += loss_funcs['ce_loss'](outputs, masks).item() * images.size(0)
+            samples += images.size(0)
+            cm = compute_confusion_matrix(masks, outputs, class_names, ignore_index=255)
             total_cm = cm if total_cm is None else total_cm + cm
-
-    iou_per_class = compute_iou_per_class(total_cm)
-    acc_per_class = compute_per_class_accuracy(total_cm)
-
+    if total_cm is None:
+        raise ValueError('Validation loader is empty.')
+    iou = compute_iou_per_class(total_cm)
+    accuracy = compute_per_class_accuracy(total_cm)
     metrics = {
-        "avg_loss": total_loss / len(data_loader),
-        "iou_per_class": iou_per_class,
-        "acc_per_class": acc_per_class,
-        "primary_mIoU"         : iou_per_class[1:].mean().item(),
-        "primary_avg_acc"      : acc_per_class[1:].mean().item(),
+        'avg_loss': total_loss / samples,
+        'iou_per_class': iou,
+        'acc_per_class': accuracy,
+        'primary_mIoU': iou.mean().item(),
+        'primary_foreground_mIoU': iou[1:].mean().item(),
+        'primary_avg_acc': accuracy.mean().item(),
+        'primary_foreground_avg_acc': accuracy[1:].mean().item(),
     }
-
-    logger.info(f"Epoch: {epoch} | Stage 3 validation")
+    logger.info(f'Epoch: {epoch} | Stage 3 validation')
     logger.info(metrics)
-
-    if save_dir is not None:
+    if save_dir is not None and (not dist.is_initialized() or dist.get_rank() == 0):
         plot_confusion_matrix(total_cm, class_names, save_path=save_dir)
-
     return metrics
