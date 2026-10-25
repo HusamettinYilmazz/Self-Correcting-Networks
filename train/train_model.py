@@ -21,6 +21,7 @@ from datasets import VOCDataset, SBDDataset
 from utils import Config, load_config, lr_vs_epoch, save_checkpoint, load_checkpoint
 from utils.logger import Logger
 from utils.dice_loss import DiceLoss
+from utils.lr_scheduler import Stage3PolynomialLR
 
 from models.primary_model import PrimarySegmentationModel
 from models.ancillary_model import AncillarySegmentationModel
@@ -38,7 +39,7 @@ def stage1_training_loop(starting_epoch, config: Config, train_loaders, train_sa
     lrs = []
     best_miou = 0.0
     logger.info("Stage 1: Ancillary Model Training")
-    logger.info(f"Stage 1 training dataset size: {len(train_loaders["f1_loader"].dataset)}")
+    logger.info(f"Stage 1 training dataset size: {len(train_loaders['f1_loader'].dataset)}")
     for epoch in range(starting_epoch, config.training['stage1_num_epochs']+1):
         logger.info(f"Epoch: {epoch}/{config.training['stage1_num_epochs']}")
         
@@ -265,6 +266,23 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
         
         cur_lr = optimizers['primary'].param_groups[0]['lr']
         lr.append(cur_lr)
+
+        # Keep the latest completed epoch for the next Kaggle session, even
+        # before the model reaches the threshold for retaining best checkpoints.
+        save_checkpoint(
+            epoch=epoch,
+            model=models['primary'],
+            optimizer=optimizers['primary'],
+            scheduler=schedulers['primary'],
+            cur_lr=cur_lr,
+            val_acc=val_metrics['acc_per_class'],
+            config=config,
+            train_transform=train_transform,
+            val_transform=val_transform,
+            save_dir=save_dir,
+            model_name='primary',
+            filename='latest_primary.pth',
+        )
         
         if val_metrics['primary_mIoU'] > 0.6 and (epoch % 3 == 0 or round(val_metrics['primary_mIoU'], 2) > round(best_miou, 2)):
             save_checkpoint(
@@ -289,6 +307,14 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
 
 
 def train(config: Config, checkpoint_path=None):
+
+    if checkpoint_path is None:
+        checkpoint_path = config.training.get('checkpoint_paths')
+    checkpoint_path = {name: path for name, path in (checkpoint_path or {}).items() if path}
+    if (config.training['training_stage'] == 3
+            and config.training['continue_traning']
+            and not checkpoint_path.get('primary')):
+        raise ValueError('To resume stage 3, set training.checkpoint_paths.primary to a checkpoint file.')
 
     dataset_path = os.path.join(ROOT, config.data['dataset_path'])
     
@@ -352,7 +378,8 @@ def train(config: Config, checkpoint_path=None):
 
     weak_train_dataset = SBDDataset(
         data_path= weak_dataset_path,
-        transform=train_transform
+        transform=train_transform,
+        exclude_ids=fully_sup_train_dataset.data
     )
     
     val_dataset = VOCDataset(data_path= train_val_dataset_path,
@@ -478,22 +505,19 @@ def train(config: Config, checkpoint_path=None):
         ),
     }
     
-    if config.training['training_stage'] == 2:
-        primary_scheduler = lr_scheduler.LambdaLR(
+    if config.training['training_stage'] == 3:
+        primary_scheduler = Stage3PolynomialLR(
             optimizers['primary'],
-            lr_lambda=lambda it: (1 - 
-                                  it / (config.training['stage2_num_epochs'] * 
-                                        len(train_loaders['f_loader']) /
-                                        config.training['grad_acc_steps'])
-                                  ) ** 0.9
+            num_epochs=config.training['stage3_num_epochs'],
+            batches_per_epoch=len(train_loaders['w_loader']),
+            accum_steps=config.training['grad_acc_steps'],
         )
     else:
         primary_scheduler = lr_scheduler.LambdaLR(
             optimizers['primary'],
             lr_lambda=lambda it: (1 - 
-                                  it / (config.training['stage3_num_epochs'] * 
-                                        (len(train_loaders['f_loader']) + 
-                                        len(train_loaders['w_loader'])) / 
+                                  it / (config.training['stage2_num_epochs'] *
+                                        len(train_loaders['f_loader']) /
                                         config.training['grad_acc_steps'])
                                   ) ** 0.9
         )
@@ -593,49 +617,39 @@ def train(config: Config, checkpoint_path=None):
             schedulers['correcting'] = ancillary_state['scheduler']
 
         elif config.training['training_stage'] == 3:
-            if config.training['continue_traning']:
+            starting_epoch = 1
+            if checkpoint_path.get('primary'):
                 primary_state = load_checkpoint(
                     checkpoint_path= checkpoint_path['primary'], 
                     model= models['primary'],
                     optimizer= optimizers['primary'], 
                     scheduler= schedulers['primary'], 
-                    device= device
-                )
-                starting_epoch = primary_state['epoch'] + 1
-                models['primary'] = primary_state['model']
-                optimizers['primary'] = primary_state['optimizer']
-                schedulers['primary'] = primary_state['scheduler']
-
-            else:
-                primary_state = load_checkpoint(
-                    checkpoint_path= checkpoint_path['primary'], 
-                    model= models['primary'],
-                    optimizer= optimizers['primary'], 
-                    scheduler= schedulers['primary'], 
-                    device= device
+                    device= device,
+                    resume=config.training['continue_traning'],
                 )
                 models['primary'] = primary_state['model']
-                starting_epoch = 1
+                if config.training['continue_traning']:
+                    starting_epoch = primary_state['epoch'] + 1
 
-            correcting_state = load_checkpoint(
-                checkpoint_path= checkpoint_path['correcting'], 
-                model= models['correcting'],
-                optimizer= optimizers['correcting'], 
-                scheduler= schedulers['correcting'], 
-                device= device
-            )
-            models['correcting'] = correcting_state['model']
-
-            ancillary_state = load_checkpoint(
-                checkpoint_path= checkpoint_path['ancillary'], 
-                model= models['ancillary'],
-                optimizer= optimizers['ancillary'], 
-                scheduler= schedulers['ancillary'], 
-                device= device
-            )
-            models['ancillary'] = ancillary_state['model']
+            for name in ('correcting', 'ancillary'):
+                if checkpoint_path.get(name):
+                    load_checkpoint(
+                        checkpoint_path=checkpoint_path[name],
+                        model=models[name],
+                        optimizer=optimizers[name],
+                        scheduler=schedulers[name],
+                        device=device,
+                        resume=False,
+                    )
     else:
         starting_epoch = 1
+
+    if (config.training['training_stage'] == 3
+            and starting_epoch > config.training['stage3_num_epochs']):
+        raise ValueError(
+            f'Checkpoint already completed epoch {starting_epoch - 1}; '
+            'stage3_num_epochs must exceed this epoch to continue training.'
+        )
     
     save_dir = os.path.join(ROOT, config.data['output_path'], config.experiment['name'], config.experiment['version'])
     os.makedirs(save_dir, exist_ok=True)
@@ -651,6 +665,13 @@ def train(config: Config, checkpoint_path=None):
 
     lrs = []
     logger.info(f"Starting training from epoch: {starting_epoch}")
+    if config.training['training_stage'] == 3:
+        scheduler = schedulers['primary']
+        logger.info(
+            f"Stage 3 LR schedule: {scheduler.updates_per_epoch} optimizer updates per epoch; "
+            f"progress {scheduler.last_epoch}/{scheduler.total_steps}; "
+            f"current LR {optimizers['primary'].param_groups[0]['lr']}"
+        )
     
     if config.training['training_stage'] == 1:
         stage1_training_loop(

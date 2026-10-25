@@ -45,6 +45,9 @@ model:
 training:
   training_stage: 3
   continue_traning: False
+  
+  checkpoint_paths:
+    primary: null  # /path/to/latest_primary.pth
   optimizer: "SGD"
   sup_batch_size: 1
   unsup_batch_size: 4
@@ -52,7 +55,7 @@ training:
   grad_acc_steps: 1
   stage1_num_epochs: 650
   stage2_num_epochs: 650
-  stage3_num_epochs: 65
+  stage3_num_epochs: 65  # Total target across all sessions, not epochs per session.
   learning_rate: 7e-3
   correcting_lr: 5e-4
   weight_decay: 4e-5

@@ -2,9 +2,9 @@ import os
 import yaml
 import pickle
 
-import matplotlib.pyplot as plt
 import torch
 import torch.distributed as dist
+from .lr_scheduler import Stage3PolynomialLR
 
 class Config:
     def __init__(self, config_dict):
@@ -25,13 +25,13 @@ def load_config(config_path="config.yaml"):
 
 def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
                     val_acc, config, train_transform, 
-                    val_transform, save_dir, model_name="model"):
+                    val_transform, save_dir, model_name="model", filename=None):
     
     if dist.is_available() and dist.is_initialized():
         if dist.get_rank() != 0:
             return
 
-    checkpoint_path = os.path.join(save_dir, f'epoch{epoch}_{model_name}.pth')
+    checkpoint_path = os.path.join(save_dir, filename or f'epoch{epoch}_{model_name}.pth')
     tmp_path = checkpoint_path + ".tmp"
 
     state_dict = model.module.state_dict() if hasattr(model, "module") else model.state_dict()
@@ -51,7 +51,9 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
 
     print(f"Epoch:{epoch} checkpoint has been saved at:{checkpoint_path}")
 
-def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device):
+def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device, resume=True):
+    if not os.path.isfile(checkpoint_path):
+        raise FileNotFoundError(f'Checkpoint must point to a file: {checkpoint_path}')
     checkpoint = torch.load(
         checkpoint_path, 
         map_location=device,
@@ -64,16 +66,13 @@ def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device):
     else:
         model.load_state_dict(state_dict)
     
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    
-    if ('scheduler_state_dict' in checkpoint and 
-        checkpoint['scheduler_state_dict'] is not None):
-
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-
-
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = checkpoint['learning_rate']
+    if resume:
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler_state = checkpoint.get('scheduler_state_dict') or {}
+        if isinstance(scheduler, Stage3PolynomialLR):
+            scheduler.restore(scheduler_state, completed_epochs=epoch)
+        elif scheduler is not None and scheduler_state:
+            scheduler.load_state_dict(scheduler_state)
     
     state = {
         "epoch": epoch, 
@@ -85,6 +84,8 @@ def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device):
     return state
 
 def lr_vs_epoch(num_epochs, lrs, save_dir):
+    import matplotlib.pyplot as plt
+
     plt.figure(figsize=(8, 5))
     plt.plot(range(1, num_epochs + 1), lrs, marker='o', linestyle='-')
     plt.xlabel("Epoch")
