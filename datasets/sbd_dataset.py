@@ -7,7 +7,7 @@ import scipy.io as sio
 
 
 class SBDDataset(Dataset):
-    def __init__(self, data_path, transform=None ):
+    def __init__(self, data_path, transform=None, exclude_ids=None):
         super().__init__()
 
         self.data_path = data_path
@@ -17,6 +17,9 @@ class SBDDataset(Dataset):
         self.ann_dir = os.path.join(data_path, "cls")
 
         self.ids = self._load_data()
+        if exclude_ids is not None:
+            excluded = set(exclude_ids)
+            self.ids = [img_id for img_id in self.ids if img_id not in excluded]
 
     def _load_data(self):
         path = os.path.join(self.data_path, "train_noval.txt")
@@ -41,21 +44,6 @@ class SBDDataset(Dataset):
 
         return onehot
 
-    def _mask_to_bbox_onehot(self, mask, num_classes=21):
-        H, W = mask.shape
-        bbox_onehot = np.zeros((num_classes, H, W), dtype=np.uint8)
-
-        for c in range(1, num_classes):
-            positions = np.where(mask == c)
-            if positions[0].size == 0:
-                continue
-
-            ymin, ymax = positions[0].min(), positions[0].max() + 1
-            xmin, xmax = positions[1].min(), positions[1].max() + 1
-            bbox_onehot[c, ymin:ymax, xmin:xmax] = 1
-
-        return bbox_onehot
-
     def __len__(self):
         return len(self.ids)
 
@@ -65,21 +53,16 @@ class SBDDataset(Dataset):
         img_path = os.path.join(self.img_dir, f"{img_id}.jpg")
         image = np.array(Image.open(img_path).convert("RGB"))
 
-        mask = self._load_mask(img_id)  # (H, W)
-
-        # weak_mask = self._mask_to_onehot(mask)  # (21, H, W)
+        target_mask = self._load_mask(img_id)  # (H, W), class IDs including ignore label 255
 
         if self.transform:
             transformed = self.transform(
                 image=image,
-                mask=mask
+                mask=target_mask
             )
 
             image = transformed["image"]
-            mask = transformed["mask"]
-            # weak_mask = np.stack(transformed["masks"], axis=0)
+            target_mask = transformed["mask"]
 
-        weak_mask = self._mask_to_bbox_onehot(mask)  # (21, H, W)
-        weak_mask = torch.tensor(weak_mask, dtype=torch.float32)
-
-        return image, weak_mask
+        target_mask = torch.as_tensor(target_mask, dtype=torch.long)
+        return image, target_mask
