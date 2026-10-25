@@ -226,3 +226,6 @@ assets/Ibrahim_Semi-Supervised_Semantic_Image_Segmentation_With_Self-Correcting_
 assets/weak_dataset/
 assets/weak_dataset.zip
 outputs/
+
+# Keep local tests out of the repository.
+/tests/
