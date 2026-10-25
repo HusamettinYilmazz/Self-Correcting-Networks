@@ -44,10 +44,13 @@ model:
 
 training:
   training_stage: 3
+  stage3_mode: "self_correction"  # Use "supervised" for the dense SBD baseline.
   continue_traning: False
   
   checkpoint_paths:
     primary: null  # /path/to/latest_primary.pth
+    correcting: null  # Stage-2 corrector; optional once bundled in latest_primary.pth.
+    ancillary: null  # Stage-1 ancillary; required for self_correction.
   optimizer: "SGD"
   sup_batch_size: 1
   unsup_batch_size: 4

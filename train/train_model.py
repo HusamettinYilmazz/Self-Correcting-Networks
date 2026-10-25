@@ -29,7 +29,7 @@ from models.self_correcting_model import SelfCorrectingNetwrokFactory
 
 from train_1st_stage import train_ancillary_model_epoch, validate_ancillary_model
 from train_2nd_stage import train_correction_model_epoch, validate_correction_model
-from train_3rd_stage import train_primary_model_epoch, validate_primary_model
+from train_3rd_stage import train_primary_model_epoch, validate_primary_model, initialize_stage3
 
 
 def stage1_training_loop(starting_epoch, config: Config, train_loaders, train_samplers, 
@@ -225,6 +225,9 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                          val_loader, train_transform, val_transform,device, models,
                          optimizers, schedulers, loss_funcs, scaler, logger, save_dir):
     
+    mode = config.training.get('stage3_mode', 'self_correction')
+    companions = ({'correcting': (models['correcting'], optimizers['correcting'], schedulers['correcting'])}
+                  if mode == 'self_correction' else {})
     lr = []
     best_miou = 0.0
     logger.info("Stage 3: Primary Model Training")
@@ -244,7 +247,8 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 loss_funcs=loss_funcs,
                 schedulers=schedulers,
                 accum_steps=config.training['grad_acc_steps'],
-                logger=logger
+                logger=logger,
+                mode=mode,
             )
 
         save_file = os.path.join(save_dir, f'epoch{epoch}_conf_matrix.png')
@@ -282,6 +286,7 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
             save_dir=save_dir,
             model_name='primary',
             filename='latest_primary.pth',
+            companions=companions,
         )
         
         if val_metrics['primary_mIoU'] > 0.6 and (epoch % 3 == 0 or round(val_metrics['primary_mIoU'], 2) > round(best_miou, 2)):
@@ -296,7 +301,8 @@ def stage3_training_loop(starting_epoch, config: Config, train_loaders, train_sa
                 train_transform= train_transform, 
                 val_transform= val_transform, 
                 save_dir= save_dir,
-                model_name= "primary"
+                model_name= "primary",
+                companions=companions,
             )
             if best_miou < val_metrics['primary_mIoU']:
                 best_miou = val_metrics['primary_mIoU']
@@ -311,6 +317,15 @@ def train(config: Config, checkpoint_path=None):
     if checkpoint_path is None:
         checkpoint_path = config.training.get('checkpoint_paths')
     checkpoint_path = {name: path for name, path in (checkpoint_path or {}).items() if path}
+    stage3_mode = config.training.get('stage3_mode', 'self_correction')
+    if config.training['training_stage'] == 3:
+        if stage3_mode not in ('self_correction', 'supervised'):
+            raise ValueError('stage3_mode must be self_correction or supervised.')
+        if stage3_mode == 'self_correction':
+            if config.model['correcting_variant'] != 'conv_correction':
+                raise ValueError('Stage 3 self_correction currently requires conv_correction.')
+            if not all(checkpoint_path.get(name) for name in ('primary', 'ancillary')):
+                raise ValueError('Set primary and ancillary checkpoint paths for self-correction.')
     if (config.training['training_stage'] == 3
             and config.training['continue_traning']
             and not checkpoint_path.get('primary')):
@@ -379,7 +394,10 @@ def train(config: Config, checkpoint_path=None):
     weak_train_dataset = SBDDataset(
         data_path= weak_dataset_path,
         transform=train_transform,
-        exclude_ids=fully_sup_train_dataset.data
+        exclude_ids=fully_sup_train_dataset.data,
+        return_boxes=(config.training['training_stage'] == 3 and stage3_mode == 'self_correction'),
+        num_classes=config.model['num_classes'],
+        box_annotations_path=os.path.join(train_val_dataset_path, 'Annotations'),
     )
     
     val_dataset = VOCDataset(data_path= train_val_dataset_path,
@@ -544,6 +562,14 @@ def train(config: Config, checkpoint_path=None):
         ),
     }
 
+    if config.training['training_stage'] == 3 and stage3_mode == 'self_correction':
+        schedulers['correcting'] = Stage3PolynomialLR(
+            optimizers['correcting'],
+            num_epochs=config.training['stage3_num_epochs'],
+            batches_per_epoch=len(train_loaders['w_loader']),
+            accum_steps=config.training['grad_acc_steps'],
+        )
+
     weights = torch.tensor([
         0.2 if i == 0 else 1.0
         for i in range(config.model["num_classes"])
@@ -617,30 +643,10 @@ def train(config: Config, checkpoint_path=None):
             schedulers['correcting'] = ancillary_state['scheduler']
 
         elif config.training['training_stage'] == 3:
-            starting_epoch = 1
-            if checkpoint_path.get('primary'):
-                primary_state = load_checkpoint(
-                    checkpoint_path= checkpoint_path['primary'], 
-                    model= models['primary'],
-                    optimizer= optimizers['primary'], 
-                    scheduler= schedulers['primary'], 
-                    device= device,
-                    resume=config.training['continue_traning'],
-                )
-                models['primary'] = primary_state['model']
-                if config.training['continue_traning']:
-                    starting_epoch = primary_state['epoch'] + 1
-
-            for name in ('correcting', 'ancillary'):
-                if checkpoint_path.get(name):
-                    load_checkpoint(
-                        checkpoint_path=checkpoint_path[name],
-                        model=models[name],
-                        optimizer=optimizers[name],
-                        scheduler=schedulers[name],
-                        device=device,
-                        resume=False,
-                    )
+            starting_epoch = initialize_stage3(
+                checkpoint_path, models, optimizers, schedulers, device,
+                resume=config.training['continue_traning'], mode=stage3_mode,
+            )
     else:
         starting_epoch = 1
 
