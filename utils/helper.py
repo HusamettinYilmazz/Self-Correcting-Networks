@@ -1,10 +1,55 @@
 import os 
 import yaml
 import pickle
+import types
 
 import torch
 import torch.distributed as dist
 from .lr_scheduler import Stage3PolynomialLR
+
+
+class _UnusedAugmentationMetadata:
+    """Consume legacy transform metadata without importing its old classes.
+
+    Training builds its transforms from the current code. These checkpoint
+    objects are never used as models, optimizers, schedulers, or augmentation.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __setstate__(self, state):
+        pass
+
+    def __getattr__(self, name):
+        # Albumentations also pickles bound methods in fields such as _key2func.
+        # Pickle resolves getattr(transform, 'apply') before restoring its state.
+        if name.startswith('__'):
+            raise AttributeError(name)
+        return _unused_augmentation_method
+
+
+def _unused_augmentation_method(*args, **kwargs):
+    return None
+
+
+class _CheckpointUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'albumentations' or module.startswith('albumentations.'):
+            return _UnusedAugmentationMetadata
+        return super().find_class(module, name)
+
+
+def _load_compat_pickle(file, **kwargs):
+    return _CheckpointUnpickler(file, **kwargs).load()
+
+
+# torch.load accepts a pickle module; keep compatibility local to this loader
+# rather than modifying Albumentations or Python's global unpickling behavior.
+_checkpoint_pickle = types.ModuleType('checkpoint_compat_pickle')
+_checkpoint_pickle.Unpickler = _CheckpointUnpickler
+_checkpoint_pickle.load = _load_compat_pickle
+
 
 class Config:
     def __init__(self, config_dict):
@@ -26,6 +71,11 @@ def load_config(config_path="config.yaml"):
 def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
                     val_acc, config, train_transform, 
                     val_transform, save_dir, model_name="model", filename=None, companions=None):
+    """Save training state; transform arguments remain for existing callers.
+
+    Runtime augmentation objects are deliberately not serialized: their import
+    paths change between Albumentations versions and they are rebuilt by train().
+    """
     
     if dist.is_available() and dist.is_initialized():
         if dist.get_rank() != 0:
@@ -43,8 +93,6 @@ def save_checkpoint(epoch, model, optimizer, scheduler, cur_lr,
             'learning_rate': cur_lr,
             'val_accuracy': val_acc,
             'config': config,
-            'train_transform': train_transform,
-            'val_transform': val_transform,
             'companions': {
                 name: {
                     'model_state_dict': extra_model.module.state_dict() if hasattr(extra_model, 'module') else extra_model.state_dict(),
@@ -65,6 +113,7 @@ def load_checkpoint(checkpoint_path, model, optimizer, scheduler, device, resume
     checkpoint = torch.load(
         checkpoint_path, 
         map_location=device,
+        pickle_module=_checkpoint_pickle,
         weights_only=False
         )
     epoch = checkpoint['epoch']
